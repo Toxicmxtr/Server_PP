@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const port = 5000;
+const port = 3000;
 
 // Настройка CORS (для запросов с Flutter-приложения)
 app.use(cors());
@@ -497,7 +497,7 @@ app.get('/posts', async (req, res) => {
         post_date: post.post_date,
         post_time: post.post_time,
         post_views: post.post_views,
-        post_picture: post.post_picture ? `http://89.111.154.242:5000/posts/${post.post_picture}` : null,
+        post_picture: post.post_picture ? `http://89.111.154.242:3000/posts/${post.post_picture}` : null,
         user_name: post.user_name || 'Неизвестный пользователь',
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
