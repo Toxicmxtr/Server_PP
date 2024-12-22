@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const port = 3000;
+const port = 5000;
 
 // Настройка CORS (для запросов с Flutter-приложения)
 app.use(cors());
@@ -497,7 +497,7 @@ app.get('/posts', async (req, res) => {
         post_date: post.post_date,
         post_time: post.post_time,
         post_views: post.post_views,
-        post_picture: post.post_picture ? `http://localhost:3000/posts/${post.post_picture}` : null,
+        post_picture: post.post_picture ? `http://89.111.154.242:5000/posts/${post.post_picture}` : null,
         user_name: post.user_name || 'Неизвестный пользователь',
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
@@ -799,5 +799,5 @@ app.post('/upload-avatar/:id', upload.single('avatar'), async (req, res) => {
 
 // Запуск сервера
 app.listen(port, () => {
-  console.log(`Сервер работает на http://localhost:${port}`);
+  console.log(`Сервер работает на http://89.111.154.242:${port}`);
 });
