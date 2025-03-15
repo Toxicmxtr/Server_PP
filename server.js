@@ -4,9 +4,11 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const port = 3000;
+
 
 // Настройка CORS (для запросов с Flutter-приложения)
 app.use(cors());
@@ -497,7 +499,7 @@ app.get('/posts', async (req, res) => {
         post_date: post.post_date,
         post_time: post.post_time,
         post_views: post.post_views,
-        post_picture: post.post_picture ? `http://89.111.154.242:3000/posts/${post.post_picture}` : null,
+        post_picture: post.post_picture ? `http://localhost:3000/posts/${post.post_picture}` : null,
         user_name: post.user_name || 'Неизвестный пользователь',
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
@@ -547,8 +549,6 @@ app.get('/boards/user/:user_id', async (req, res) => {
   }
 });
 
-
-
 // Маршрут для заноса данных о созданной доске
 app.post('/boards', async (req, res) => {
   const { board_name, board_colour, board_users } = req.body;
@@ -572,12 +572,15 @@ app.post('/boards', async (req, res) => {
 
     // Создаем колонки для доски
     const columns = [
-      { column_name: 'Все прошло хорошо', column_colour: 'red', column_text: null },
-      { column_name: 'Необходимо улучшить', column_colour: 'blue', column_text: null },
-      { column_name: 'Элементы действия', column_colour: 'green', column_text: null },
+      { column_name: 'Факты', column_colour: 'white', column_text: null },
+      { column_name: 'Эмоции', column_colour: 'red', column_text: null },
+      { column_name: 'Преимущества', column_colour: 'yellow', column_text: null },
+      { column_name: 'Критика', column_colour: 'black', column_text: null },
+      { column_name: 'Решение', column_colour: 'green', column_text: null },
+      { column_name: 'Контроль', column_colour: 'blue', column_text: null },
     ];
 
-    // Вставляем колонки для доски в таблицу columns
+    // Вставляем колонки для доски в таблицу colum
     const columnIds = []; // Массив для хранения column_id
 
     for (let column of columns) {
@@ -613,18 +616,23 @@ app.post('/boards', async (req, res) => {
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
   try {
-    const result = await pool.query('SELECT board_columns, board_colour FROM boards WHERE board_id = $1', [boardId]);
+    const result = await pool.query(
+      'SELECT board_columns, board_colour, board_creator FROM boards WHERE board_id = $1',
+      [boardId]
+    );
+
     if (result.rows.length > 0) {
       const board = result.rows[0];
       const columnIds = board.board_columns.split(' '); // Получаем массив ID колонок
 
       const columnsResult = await pool.query(
-        'SELECT column_id, column_name, column_colour, column_text FROM columns WHERE column_id = ANY($1) ORDER BY array_position($1, column_id)', // Сортируем по порядку ID из массива
+        'SELECT column_id, column_name, column_colour, column_text FROM columns WHERE column_id = ANY($1) ORDER BY array_position($1, column_id)',
         [columnIds]
       );
 
       res.json({
         board_colour: board.board_colour,
+        board_creator: board.board_creator.replace(/[{}"]/g, ''), // Убираем лишние символы
         columns: columnsResult.rows,
       });
     } else {
@@ -635,6 +643,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 // Удаление доски и связанных колонок
 app.delete('/boards/:boardId/delete', async (req, res) => {
@@ -666,54 +675,141 @@ app.delete('/boards/:boardId/delete', async (req, res) => {
   }
 });
 
+//приглашение в доску
 app.post('/boards/:boardId/invite', async (req, res) => {
   const { boardId } = req.params;
-  const { user_acctag } = req.body;
+  const { user_acctag, user_id } = req.body;
 
   try {
-    // Проверяем, существует ли доска
+    // Проверяем, существует ли доска и получаем её данные, включая board_creator
     const boardResult = await pool.query('SELECT * FROM boards WHERE board_id = $1', [boardId]);
+
     if (boardResult.rowCount === 0) {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Ищем пользователя по его user_acctag
+    // Получаем board_creator
+    const board = boardResult.rows[0];
+    const boardCreator = board.board_creator.replace(/[{}"]/g, '');
+
+    // Добавляем board_creator в ответ
+    if (!boardCreator) {
+      return res.status(500).json({ message: 'Ошибка: board_creator отсутствует в базе данных' });
+    }
+
+    // Проверяем, является ли вызывающий пользователь создателем
+    if (boardCreator !== user_id.toString()) {
+      return res.status(403).json({ message: 'Вы не являетесь создателем этой доски', board_creator: boardCreator });
+    }
+
+    // Ищем пользователя по user_acctag
     const userResult = await pool.query('SELECT * FROM users WHERE user_acctag = $1', [user_acctag]);
+
     if (userResult.rowCount === 0) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(404).json({ message: 'Пользователь не найден', board_creator: boardCreator });
     }
 
-    // Получаем user_id из таблицы users
-    const userId = userResult.rows[0].user_id;
+    const invitedUserId = userResult.rows[0].user_id;
 
-    // Формируем строку с user_id в формате {"user_id"}
-    const userToAdd = `{"${userId}"}`;
+    // Получаем текущий список пользователей
+    let currentUsers = board.board_users || '{}';
 
-    // Проверяем, есть ли уже пользователи в списке
-    const currentUsers = boardResult.rows[0].board_users;
-
-    let updatedUsers;
-    if (currentUsers) {
-      // Если уже есть пользователи, добавляем нового в формате {"user_id"}
-      updatedUsers = currentUsers.endsWith('}') ? currentUsers.slice(0, -1) + ',' + userToAdd + '}' : currentUsers + ',' + userToAdd;
-    } else {
-      // Если список пользователей пуст, создаем новый список с одним пользователем
-      updatedUsers = userToAdd;
+    // Проверяем, есть ли уже этот пользователь
+    if (currentUsers.includes(`"${invitedUserId}"`)) {
+      return res.status(400).json({ message: 'Пользователь уже добавлен', board_creator: boardCreator });
     }
 
-    // Обновляем таблицу boards, добавив нового пользователя
-    await pool.query(
-      'UPDATE boards SET board_users = $1 WHERE board_id = $2',
-      [updatedUsers, boardId]
-    );
+    // Формируем новый список пользователей
+    const updatedUsers = currentUsers.replace(/}$/, `,"${invitedUserId}"}`);
 
-    return res.status(200).json({ message: 'Пользователь успешно приглашен' });
+    // Обновляем базу данных
+    await pool.query('UPDATE boards SET board_users = $1 WHERE board_id = $2', [updatedUsers, boardId]);
+
+    return res.status(200).json({ message: 'Пользователь успешно приглашен', board_creator: boardCreator });
   } catch (error) {
-    console.error('Ошибка при приглашении пользователя', error);
-    res.status(500).json({ message: 'Ошибка при приглашении пользователя' });
+    console.error('Ошибка при приглашении пользователя:', error);
+    res.status(500).json({ message: 'Ошибка при приглашении пользователя', board_creator: null });
   }
 });
 
+//ссылка-приглашение
+app.post('/boards/:boardId/invite-link', async (req, res) => {
+  const { boardId } = req.params;
+  const { inviterId } = req.body; 
+
+  try {
+    const token = crypto.randomBytes(16).toString('hex');
+    const status = 'pending';
+
+    const result = await pool.query(
+      'INSERT INTO invites (board_id, inviter_id, token, status, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING token',
+      [boardId, inviterId, token, status]
+    );
+
+    const inviteLink = `https://yourapp.com/invite/${result.rows[0].token}`;
+    res.json({ inviteLink });
+  } catch (err) {
+    console.error('Error creating invite:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Проверка ссылки-приглашения
+app.get('/invite/:token', async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM invites WHERE token = $1',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Invite not found or expired' });
+    }
+
+    res.json({ invite: result.rows[0] });
+  } catch (err) {
+    console.error('Error fetching invite:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Принятие или отклонение приглашения
+app.post('/invite/:token/respond', async (req, res) => {
+  const { token } = req.params;
+  const { userId, response } = req.body; // response: 'accepted' или 'declined'
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM invites WHERE token = $1',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Invite not found or expired' });
+    }
+
+    if (response === 'accepted') {
+      // Добавляем пользователя в доску
+      await pool.query(
+        'INSERT INTO board_users (board_id, user_id) VALUES ($1, $2)',
+        [result.rows[0].board_id, userId]
+      );
+    }
+
+    // Обновляем статус приглашения
+    await pool.query(
+      'UPDATE invites SET status = $1 WHERE token = $2',
+      [response, token]
+    );
+
+    res.json({ message: `Invite ${response}` });
+  } catch (err) {
+    console.error('Error responding to invite:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 // Серверный код для добавления записи в колонку
 app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
@@ -774,8 +870,6 @@ app.patch('/posts/:id/views', async (req, res) => {
   }
 });
 
-
-
 // Маршрут для загрузки аватарки пользователя
 app.post('/upload-avatar/:id', upload.single('avatar'), async (req, res) => {
   try {
@@ -799,5 +893,5 @@ app.post('/upload-avatar/:id', upload.single('avatar'), async (req, res) => {
 
 // Запуск сервера
 app.listen(port, () => {
-  console.log(`Сервер работает на http://89.111.154.242:${port}`);
+  console.log(`Сервер работает на http://localhost:${port}`);
 });
