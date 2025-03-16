@@ -746,7 +746,7 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
       [boardId, inviterId, token, status]
     );
 
-    const inviteLink = `https://yourapp.com/invite/${result.rows[0].token}`;
+    const inviteLink = `http://89.104.66.135/invite/${result.rows[0].token}`;
     res.json({ inviteLink });
   } catch (err) {
     console.error('Error creating invite:', err);
