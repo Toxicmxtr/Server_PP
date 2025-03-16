@@ -502,7 +502,7 @@ app.get('/posts', async (req, res) => {
         post_date: post.post_date,
         post_time: post.post_time,
         post_views: post.post_views,
-        post_picture: post.post_picture ? `http://89.104.66.135:3000/posts/${post.post_picture}` : null,
+        post_picture: post.post_picture ? `https://retroispk.ru/posts/${post.post_picture}` : null,
         user_name: post.user_name || 'Неизвестный пользователь',
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
@@ -749,7 +749,7 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
       [boardId, inviterId, token, status]
     );
 
-    const inviteLink = `http://89.104.66.135:3000/invite/${result.rows[0].token}`;
+    const inviteLink = `https://retroispk.ru/invite/${result.rows[0].token}`;
     res.json({ inviteLink });
   } catch (err) {
     console.error('Error creating invite:', err);
@@ -896,5 +896,5 @@ app.post('/upload-avatar/:id', upload.single('avatar'), async (req, res) => {
 
 // Запуск сервера
 app.listen(port, () => {
-  console.log(`Сервер работает на http://89.104.66.135:${port}`);
+  console.log(`Сервер работает на https://retroispk.ru:${port}`);
 });
