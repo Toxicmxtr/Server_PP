@@ -773,13 +773,14 @@ app.get('/invite/:token', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Invite not found or expired' });
+      return res.status(404).send('Invite not found or expired');
     }
-
-    res.json({ invite: result.rows[0] });
+    
+    const appLink = `retroispk://invite/${token}`;
+    res.redirect(appLink);
   } catch (err) {
     console.error('Error fetching invite:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    res.status(500).send('Internal Server Error');
   }
 });
 
