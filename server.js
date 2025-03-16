@@ -735,10 +735,10 @@ app.post('/boards/:boardId/invite', async (req, res) => {
   }
 });
 
-//ссылка-приглашение
+// Обновленный маршрут для генерации ссылки-приглашения
 app.post('/boards/:boardId/invite-link', async (req, res) => {
   const { boardId } = req.params;
-  const { inviterId } = req.body; 
+  const { inviterId } = req.body;
 
   try {
     const token = crypto.randomBytes(16).toString('hex');
@@ -749,8 +749,13 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
       [boardId, inviterId, token, status]
     );
 
-    const inviteLink = `https://retroispk.ru/invite/${result.rows[0].token}`;
-    res.json({ inviteLink });
+    const inviteToken = result.rows[0].token;
+
+    // Генерируем универсальную ссылку
+    const inviteLink = `https://retroispk.ru/invite/${inviteToken}`;
+    const appLink = `https://retroispk.ru/.well-known/invite?token=${inviteToken}`;
+
+    res.json({ inviteLink, appLink });
   } catch (err) {
     console.error('Error creating invite:', err);
     res.status(500).json({ error: 'Internal Server Error' });
