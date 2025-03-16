@@ -9,6 +9,9 @@ const crypto = require('crypto');
 const app = express();
 const port = 3000;
 
+// Раздача статических файлов
+app.use('/.well-known', express.static(path.join(__dirname, '.well-known')));
+
 
 // Настройка CORS (для запросов с Flutter-приложения)
 app.use(cors());
@@ -746,7 +749,7 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
       [boardId, inviterId, token, status]
     );
 
-    const inviteLink = `http://89.104.66.135/invite/${result.rows[0].token}`;
+    const inviteLink = `http://89.104.66.135:3000/invite/${result.rows[0].token}`;
     res.json({ inviteLink });
   } catch (err) {
     console.error('Error creating invite:', err);
