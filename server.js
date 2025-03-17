@@ -127,7 +127,7 @@ app.get('/invite/:token', async (req, res) => {
                   }, 100);
                   setTimeout(function() {
                       window.location.href = "https://retroispk.ru";
-                  }, 1500000);
+                  }, 1500);
               </script>
           </head>
           <body>
@@ -141,6 +141,8 @@ app.get('/invite/:token', async (req, res) => {
   }
 });
 
+// Обработка favicon.ico, чтобы браузер не слетал на корневой маршрут
+app.get('/favicon.ico', (req, res) => res.status(204));
 
 // Корневой маршрут
 app.get('/', (req, res) => {
