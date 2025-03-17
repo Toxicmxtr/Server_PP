@@ -125,9 +125,6 @@ app.get('/invite/:token', async (req, res) => {
                   setTimeout(function() {
                       window.location.href = "${androidLink}";
                   }, 100);
-                  setTimeout(function() {
-                      window.location.href = "https://retroispk.ru";
-                  }, 1500);
               </script>
           </head>
           <body>
