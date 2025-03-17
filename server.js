@@ -787,33 +787,32 @@ app.get('/invite/:token', async (req, res) => {
           return res.status(404).send('Invite not found or expired');
       }
 
-      const androidIntentLink = `intent://invite/${token}#Intent;scheme=retroispk;package=com.yourapp.package;end;`;
-      const iosLink = `https://retroispk.ru/invite/${token}`;
+      const androidLink = `retroispk://invite/${token}`;
+      const fallbackLink = `https://retroispk.ru/invite-fallback/${token}`;
 
       const userAgent = req.get('User-Agent');
       console.log(`Processing invite request for token: ${token} (User-Agent: ${userAgent})`);
 
-      res.send(`
-          <!DOCTYPE html>
-          <html lang="ru">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Открытие приложения...</title>
-          </head>
-          <body>
-              <p>Если приложение не открылось автоматически, <a href="${androidIntentLink}">нажмите здесь</a>.</p>
-
-              <script>
-                  setTimeout(function() {
-                      window.location.href = "${androidIntentLink}";
-                  }, 100);
-                  setTimeout(function() {
-                      window.location.href = "https://retroispk.ru";
-                  }, 2000);
-              </script>
-          </body>
-          </html>
+      res.send(`  
+          <!DOCTYPE html>  
+          <html>  
+          <head>  
+              <title>Открытие приложения...</title>  
+              <meta name="viewport" content="width=device-width, initial-scale=1">  
+              <script>  
+                  function openApp() {  
+                      window.location.href = "${androidLink}";  
+                      setTimeout(function() {  
+                          window.location.href = "${fallbackLink}";  
+                      }, 2000);
+                  }  
+                  document.addEventListener("DOMContentLoaded", openApp);  
+              </script>  
+          </head>  
+          <body>  
+              <p>Если приложение не открылось автоматически, <a href="${androidLink}">нажмите здесь</a>.</p>  
+          </body>  
+          </html>  
       `);
   } catch (err) {
       console.error('Error fetching invite:', err);
