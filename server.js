@@ -285,8 +285,6 @@ app.get('/profile/:id', async (req, res) => {
   }
 });
 
-
-
 // Маршрут для получения данных пользователя
 app.get('/settings/:id', async (req, res) => {
   const userId = req.params.id;
@@ -775,9 +773,24 @@ app.get('/invite/:token', async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).send('Invite not found or expired');
     }
-    
+
     const appLink = `retroispk://invite/${token}`;
-    res.redirect(appLink);
+
+    res.send(`
+      <html>
+        <head>
+          <meta http-equiv="refresh" content="0; url='${appLink}'" />
+          <script>
+            setTimeout(function() {
+              window.location.href = '${appLink}';
+            }, 100);
+          </script>
+        </head>
+        <body>
+          <p>Если приложение не открылось, <a href="${appLink}">нажмите здесь</a>.</p>
+        </body>
+      </html>
+    `);
   } catch (err) {
     console.error('Error fetching invite:', err);
     res.status(500).send('Internal Server Error');
