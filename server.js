@@ -789,7 +789,7 @@ app.get('/invite/:token', async (req, res) => {
           return res.status(404).send('Invite not found or expired');
       }
 
-      const androidLink = `intent://invite/${token}#Intent;scheme=https;package=com.example.untitled;S.browser_fallback_url=https://retroispk.ru;end;`;
+      const androidLink = `retroispk://invite/${token}`;
       const iosLink = `https://retroispk.ru/invite/${token}`;
 
       const userAgent = req.get('User-Agent');
@@ -807,8 +807,6 @@ app.get('/invite/:token', async (req, res) => {
       res.status(500).send('Internal Server Error');
   }
 });
-
-
 
 // Принятие или отклонение приглашения
 app.post('/invite/:token/respond', async (req, res) => {
