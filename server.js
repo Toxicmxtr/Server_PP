@@ -779,31 +779,35 @@ app.get('/invite/:token', async (req, res) => {
   const { token } = req.params;
 
   try {
-    const result = await pool.query(
-      'SELECT * FROM invites WHERE token = $1',
-      [token]
-    );
+      const result = await pool.query(
+          'SELECT * FROM invites WHERE token = $1',
+          [token]
+      );
 
-    if (result.rows.length === 0) {
-      return res.status(404).send('Invite not found or expired');
-    }
+      if (result.rows.length === 0) {
+          console.log(`Invite not found: ${token}`);
+          return res.status(404).send('Invite not found or expired');
+      }
 
-    const androidLink = `intent://invite/${token}#Intent;scheme=retroispk;package=com.example.untitled;S.browser_fallback_url=https://retroispk.ru;end;`;
-    const iosLink = `retroispk://invite/${token}`;
+      const androidLink = `intent://invite/${token}#Intent;scheme=https;package=com.example.untitled;S.browser_fallback_url=https://retroispk.ru;end;`;
+      const iosLink = `https://retroispk.ru/invite/${token}`;
 
-    const userAgent = req.get('User-Agent');
-    if (/android/i.test(userAgent)) {
-      res.redirect(androidLink);
-    } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
-      res.redirect(iosLink);
-    } else {
-      res.redirect('https://retroispk.ru');
-    }
+      const userAgent = req.get('User-Agent');
+      console.log(`Redirecting to: ${androidLink} (User-Agent: ${userAgent})`);
+
+      if (/android/i.test(userAgent)) {
+          res.redirect(androidLink);
+      } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+          res.redirect(iosLink);
+      } else {
+          res.redirect('https://retroispk.ru');
+      }
   } catch (err) {
-    console.error('Error fetching invite:', err);
-    res.status(500).send('Internal Server Error');
+      console.error('Error fetching invite:', err);
+      res.status(500).send('Internal Server Error');
   }
 });
+
 
 
 // Принятие или отклонение приглашения
