@@ -9,6 +9,8 @@ const crypto = require('crypto');
 const app = express();
 const port = 3000;
 
+app.use(express.static(path.join(__dirname, 'public')));
+
 // Раздача статических файлов
 app.use('/.well-known', express.static(path.join(__dirname, '.well-known')));
 
@@ -53,6 +55,14 @@ const upload = multer({
     }
   },
 });
+
+app.use('/.well-known', express.static(path.join(__dirname, '.well-known'), {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.json')) {
+      res.setHeader('Content-Type', 'application/json');
+    }
+  }
+}));
 
 // Настройка хранилища для multer
 const postUpload = multer({
