@@ -793,15 +793,29 @@ app.get('/invite/:token', async (req, res) => {
       const iosLink = `https://retroispk.ru/invite/${token}`;
 
       const userAgent = req.get('User-Agent');
-      console.log(`Redirecting to: ${androidLink} (User-Agent: ${userAgent})`);
+      console.log(`Processing invite request for token: ${token} (User-Agent: ${userAgent})`);
 
-      if (/android/i.test(userAgent)) {
-          res.redirect(androidLink);
-      } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
-          res.redirect(iosLink);
-      } else {
-          res.redirect('https://retroispk.ru');
-      }
+      // Возвращаем HTML-страницу с редиректом
+      res.send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Открытие приложения...</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <script>
+                  setTimeout(function() {
+                      window.location.href = "${androidLink}";
+                  }, 100);
+                  setTimeout(function() {
+                      window.location.href = "https://retroispk.ru";
+                  }, 1500);
+              </script>
+          </head>
+          <body>
+              <p>Если приложение не открылось автоматически, <a href="${androidLink}">нажмите здесь</a>.</p>
+          </body>
+          </html>
+      `);
   } catch (err) {
       console.error('Error fetching invite:', err);
       res.status(500).send('Internal Server Error');
