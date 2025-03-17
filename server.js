@@ -774,28 +774,23 @@ app.get('/invite/:token', async (req, res) => {
       return res.status(404).send('Invite not found or expired');
     }
 
-    const appLink = `retroispk://invite/${token}`;
+    const androidLink = `intent://invite/${token}#Intent;scheme=https;package=com.example.untitled;S.browser_fallback_url=https://retroispk.ru;end;`;
+    const iosLink = `https://retroispk.ru/invite/${token}`;
 
-    res.send(`
-      <html>
-        <head>
-          <meta http-equiv="refresh" content="0; url='${appLink}'" />
-          <script>
-            setTimeout(function() {
-              window.location.href = '${appLink}';
-            }, 100);
-          </script>
-        </head>
-        <body>
-          <p>Если приложение не открылось, <a href="${appLink}">нажмите здесь</a>.</p>
-        </body>
-      </html>
-    `);
+    const userAgent = req.get('User-Agent');
+    if (/android/i.test(userAgent)) {
+      res.redirect(androidLink);
+    } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      res.redirect(iosLink);
+    } else {
+      res.redirect('https://retroispk.ru');
+    }
   } catch (err) {
     console.error('Error fetching invite:', err);
     res.status(500).send('Internal Server Error');
   }
 });
+
 
 // Принятие или отклонение приглашения
 app.post('/invite/:token/respond', async (req, res) => {
