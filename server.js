@@ -9,11 +9,10 @@ const crypto = require('crypto');
 const app = express();
 const port = 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use('/public', express.static(path.join(__dirname, 'public')));
 
 // Раздача статических файлов
 app.use('/.well-known', express.static(path.join(__dirname, '.well-known')));
-
 
 // Настройка CORS (для запросов с Flutter-приложения)
 app.use(cors());
