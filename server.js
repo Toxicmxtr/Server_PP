@@ -93,6 +93,54 @@ const postUpload = multer({
   },
 });
 
+// Проверка ссылки-приглашения
+app.get('/invite/:token', async (req, res) => {
+  const { token } = req.params;
+
+  try {
+      const result = await pool.query(
+          'SELECT * FROM invites WHERE token = $1',
+          [token]
+      );
+
+      if (result.rows.length === 0) {
+          console.log(`Invite not found: ${token}`);
+          return res.status(404).send('Invite not found or expired');
+      }
+
+      const androidLink = `retroispk://invite/${token}`;
+      const iosLink = `https://retroispk.ru/invite/${token}`;
+
+      const userAgent = req.get('User-Agent');
+      console.log(`Processing invite request for token: ${token} (User-Agent: ${userAgent})`);
+
+      // Возвращаем HTML-страницу с редиректом
+      res.send(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Открытие приложения...</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <script>
+                  setTimeout(function() {
+                      window.location.href = "${androidLink}";
+                  }, 100);
+                  setTimeout(function() {
+                      window.location.href = "https://retroispk.ru";
+                  }, 1500);
+              </script>
+          </head>
+          <body>
+              <p>Если приложение не открылось автоматически, <a href="${androidLink}">нажмите здесь</a>.</p>
+          </body>
+          </html>
+      `);
+  } catch (err) {
+      console.error('Error fetching invite:', err);
+      res.status(500).send('Internal Server Error');
+  }
+});
+
 
 // Корневой маршрут
 app.get('/', (req, res) => {
@@ -771,54 +819,6 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
   } catch (err) {
     console.error('Error creating invite:', err);
     res.status(500).json({ error: 'Internal Server Error' });
-  }
-});
-
-// Проверка ссылки-приглашения
-app.get('/invite/:token', async (req, res) => {
-  const { token } = req.params;
-
-  try {
-      const result = await pool.query(
-          'SELECT * FROM invites WHERE token = $1',
-          [token]
-      );
-
-      if (result.rows.length === 0) {
-          console.log(`Invite not found: ${token}`);
-          return res.status(404).send('Invite not found or expired');
-      }
-
-      const androidLink = `retroispk://invite/${token}`;
-      const iosLink = `https://retroispk.ru/invite/${token}`;
-
-      const userAgent = req.get('User-Agent');
-      console.log(`Processing invite request for token: ${token} (User-Agent: ${userAgent})`);
-
-      // Возвращаем HTML-страницу с редиректом
-      res.send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>Открытие приложения...</title>
-              <meta name="viewport" content="width=device-width, initial-scale=1">
-              <script>
-                  setTimeout(function() {
-                      window.location.href = "${androidLink}";
-                  }, 100);
-                  setTimeout(function() {
-                      window.location.href = "https://retroispk.ru";
-                  }, 1500);
-              </script>
-          </head>
-          <body>
-              <p>Если приложение не открылось автоматически, <a href="${androidLink}">нажмите здесь</a>.</p>
-          </body>
-          </html>
-      `);
-  } catch (err) {
-      console.error('Error fetching invite:', err);
-      res.status(500).send('Internal Server Error');
   }
 });
 
