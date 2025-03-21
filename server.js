@@ -5,6 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const ldap = require('ldapjs');
 
 const app = express();
 const port = 3000;
@@ -163,6 +164,59 @@ app.post('/register', async (req, res) => {
   }
 });
 
+const ldap = require('ldapjs');
+
+//мфршрут для регистрации через LDAP
+app.post('/registerLDAP', async (req, res) => {
+  console.log('Полученные данные:', req.body);
+  const { user_login, user_email, user_password, user_phone_number } = req.body;
+
+  if (!user_login || !user_email || !user_password || !user_phone_number) {
+    return res.status(400).send('Логин, email, телефон и пароль обязательны');
+  }
+
+  const client = ldap.createClient({
+    url: 'ldap://localhost:389',
+  });
+
+  const dn = `uid=${user_login},ou=users,dc=example,dc=com`;
+
+  client.bind(dn, user_password, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: 'Ошибка проверки данных в LDAP' });
+    }
+
+    try {
+      const existingUser = await pool.query(
+        'SELECT user_id FROM users WHERE user_phone_number = $1',
+        [user_phone_number]
+      );
+
+      if (existingUser.rows.length > 0) {
+        return res.status(400).json({ message: 'Такой номер телефона уже зарегистрирован' });
+      }
+
+      const result = await pool.query(
+        'INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) VALUES ($1, $2, $3, $4, $5) RETURNING user_id',
+        [user_phone_number, user_password, user_login, user_email, 1]
+      );
+
+      const userId = result.rows[0].user_id;
+
+      res.status(201).json({
+        message: 'Пользователь успешно зарегистрирован',
+        user_id: userId,
+      });
+    } catch (dbErr) {
+      console.error('Ошибка при регистрации пользователя:', dbErr);
+      res.status(500).send('Ошибка при регистрации');
+    } finally {
+      client.unbind();
+    }
+  });
+});
+
+
 // Маршрут для входа
 app.post('/login', async (req, res) => {
   const { identifier, user_password } = req.body;
@@ -198,7 +252,8 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// Маршрут для входа
+
+// Маршрут для входа если пароль забыт
 app.post('/forgot', async (req, res) => {
   const { identifier } = req.body; // Теперь только номер телефона или user_acctag
 
