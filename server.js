@@ -164,7 +164,7 @@ app.post('/register', async (req, res) => {
   }
 });
 
-//мфршрут для регистрации через LDAP
+//маршрут для регистрации через LDAP
 app.post('/registerLDAP', async (req, res) => {
   console.log('Полученные данные:', req.body);
   const { user_login, user_email, user_password, user_phone_number } = req.body;
@@ -174,7 +174,7 @@ app.post('/registerLDAP', async (req, res) => {
   }
 
   const client = ldap.createClient({
-    url: 'ldap://localhost:389',
+    url: 'ldap://172.18.0.2:389',
   });
 
   const dn = `uid=${user_login},ou=users,dc=example,dc=com`;
