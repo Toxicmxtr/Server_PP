@@ -164,8 +164,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-const ldap = require('ldapjs');
-
 //мфршрут для регистрации через LDAP
 app.post('/registerLDAP', async (req, res) => {
   console.log('Полученные данные:', req.body);
