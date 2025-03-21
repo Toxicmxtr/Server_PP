@@ -174,7 +174,7 @@ app.post('/registerLDAP', async (req, res) => {
   }
 
   const client = ldap.createClient({
-    url: 'ldap://172.18.0.2:389',
+    url: 'ldap://172.17.0.3:389',
   });
 
   const dn = `uid=${user_login},ou=users,dc=example,dc=com`;
