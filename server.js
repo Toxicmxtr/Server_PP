@@ -164,7 +164,7 @@ app.post('/register', async (req, res) => {
   }
 });
 
-//маршрут для регистрации через LDAP
+// маршрут для регистрации через LDAP
 app.post("/registerLDAP", async (req, res) => {
   console.log("Полученные данные:", req.body);
   const { user_login, user_email, user_password, user_phone_number } = req.body;
@@ -201,9 +201,8 @@ app.post("/registerLDAP", async (req, res) => {
           return res.status(400).json({ message: "Пользователь не найден в LDAP" });
         }
 
-        const userClient = ldap.createClient({ url: "ldap://retroispk.ru:389" });
-
-        userClient.bind(userDN, user_password, async (err) => {
+        // Используем client, чтобы подключиться с правильным DN и паролем
+        client.bind(userDN, user_password, async (err) => {
           if (err) {
             return res.status(400).json({ message: "Неверный логин или пароль" });
           }
@@ -233,13 +232,14 @@ app.post("/registerLDAP", async (req, res) => {
             console.error("Ошибка при регистрации пользователя:", dbErr);
             res.status(500).send("Ошибка при регистрации");
           } finally {
-            userClient.unbind();
+            client.unbind();
           }
         });
       });
     });
   });
 });
+
 
 
 // Маршрут для входа
