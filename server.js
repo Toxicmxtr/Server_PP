@@ -173,7 +173,7 @@ app.post("/registerLDAP", async (req, res) => {
     return res.status(400).send("Логин, email, телефон и пароль обязательны");
   }
 
-  const client = ldap.createClient({ url: "ldaps://retroispk.ru:636" });
+  const client = ldap.createClient({ url: "ldaps://172.17.0.2:636" });
 
   client.bind("cn=admin,dc=example,dc=com", "admin123", (err) => {
     if (err) {
@@ -201,7 +201,6 @@ app.post("/registerLDAP", async (req, res) => {
           return res.status(400).json({ message: "Пользователь не найден в LDAP" });
         }
 
-        // Используем client, чтобы подключиться с правильным DN и паролем
         client.bind(userDN, user_password, async (err) => {
           if (err) {
             return res.status(400).json({ message: "Неверный логин или пароль" });
@@ -239,6 +238,7 @@ app.post("/registerLDAP", async (req, res) => {
     });
   });
 });
+
 
 
 
