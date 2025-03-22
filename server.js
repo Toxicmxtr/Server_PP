@@ -173,7 +173,7 @@ app.post("/registerLDAP", async (req, res) => {
     return res.status(400).send("Логин, email, телефон и пароль обязательны");
   }
 
-  const client = ldap.createClient({ url: "ldap://172.17.0.2:389" });
+  const client = ldap.createClient({ url: "ldap://172.30.64.1:389" });
 
   client.bind("cn=admin,dc=example,dc=com", "admin123", (err) => {
     if (err) {
@@ -201,7 +201,7 @@ app.post("/registerLDAP", async (req, res) => {
           return res.status(400).json({ message: "Пользователь не найден в LDAP" });
         }
 
-        const userClient = ldap.createClient({ url: "ldap://172.17.0.2:389" });
+        const userClient = ldap.createClient({ url: "ldap://172.30.64.1:389" });
 
         userClient.bind(userDN, user_password, async (err) => {
           if (err) {
