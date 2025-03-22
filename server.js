@@ -165,54 +165,82 @@ app.post('/register', async (req, res) => {
 });
 
 //маршрут для регистрации через LDAP
-app.post('/registerLDAP', async (req, res) => {
-  console.log('Полученные данные:', req.body);
+app.post("/registerLDAP", async (req, res) => {
+  console.log("Полученные данные:", req.body);
   const { user_login, user_email, user_password, user_phone_number } = req.body;
 
   if (!user_login || !user_email || !user_password || !user_phone_number) {
-    return res.status(400).send('Логин, email, телефон и пароль обязательны');
+    return res.status(400).send("Логин, email, телефон и пароль обязательны");
   }
 
-  const client = ldap.createClient({
-    url: 'ldap://172.17.0.3:389',
-  });
+  const client = ldap.createClient({ url: "ldap://172.17.0.3:389" });
 
-  const dn = `uid=${user_login},ou=users,dc=example,dc=com`;
-
-  client.bind(dn, user_password, async (err) => {
+  client.bind("cn=admin,dc=example,dc=com", "admin123", (err) => {
     if (err) {
-      return res.status(400).json({ message: 'Ошибка проверки данных в LDAP' });
+      return res.status(500).json({ message: "Ошибка подключения к LDAP" });
     }
 
-    try {
-      const existingUser = await pool.query(
-        'SELECT user_id FROM users WHERE user_phone_number = $1',
-        [user_phone_number]
-      );
+    const searchOptions = {
+      scope: "sub",
+      filter: `(uid=${user_login})`,
+    };
 
-      if (existingUser.rows.length > 0) {
-        return res.status(400).json({ message: 'Такой номер телефона уже зарегистрирован' });
+    client.search("ou=users,dc=example,dc=com", searchOptions, (err, searchRes) => {
+      if (err) {
+        return res.status(500).json({ message: "Ошибка поиска в LDAP" });
       }
 
-      const result = await pool.query(
-        'INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) VALUES ($1, $2, $3, $4, $5) RETURNING user_id',
-        [user_phone_number, user_password, user_login, user_email, 1]
-      );
+      let userDN = null;
 
-      const userId = result.rows[0].user_id;
-
-      res.status(201).json({
-        message: 'Пользователь успешно зарегистрирован',
-        user_id: userId,
+      searchRes.on("searchEntry", (entry) => {
+        userDN = entry.object.dn;
       });
-    } catch (dbErr) {
-      console.error('Ошибка при регистрации пользователя:', dbErr);
-      res.status(500).send('Ошибка при регистрации');
-    } finally {
-      client.unbind();
-    }
+
+      searchRes.on("end", () => {
+        if (!userDN) {
+          return res.status(400).json({ message: "Пользователь не найден в LDAP" });
+        }
+
+        const userClient = ldap.createClient({ url: "ldap://172.17.0.3:389" });
+
+        userClient.bind(userDN, user_password, async (err) => {
+          if (err) {
+            return res.status(400).json({ message: "Неверный логин или пароль" });
+          }
+
+          try {
+            const existingUser = await pool.query(
+              "SELECT user_id FROM users WHERE user_phone_number = $1",
+              [user_phone_number]
+            );
+
+            if (existingUser.rows.length > 0) {
+              return res.status(400).json({ message: "Такой номер телефона уже зарегистрирован" });
+            }
+
+            const result = await pool.query(
+              "INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) VALUES ($1, $2, $3, $4, $5) RETURNING user_id",
+              [user_phone_number, user_password, user_login, user_email, 1]
+            );
+
+            const userId = result.rows[0].user_id;
+
+            res.status(201).json({
+              message: "Пользователь успешно зарегистрирован",
+              user_id: userId,
+            });
+          } catch (dbErr) {
+            console.error("Ошибка при регистрации пользователя:", dbErr);
+            res.status(500).send("Ошибка при регистрации");
+          } finally {
+            userClient.unbind();
+          }
+        });
+      });
+    });
   });
 });
+
 
 
 // Маршрут для входа
