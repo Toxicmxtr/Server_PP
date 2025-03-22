@@ -173,7 +173,7 @@ app.post("/registerLDAP", async (req, res) => {
     return res.status(400).send("Логин, email, телефон и пароль обязательны");
   }
 
-  const client = ldap.createClient({ url: "ldap://retroispk.ru:389" });
+  const client = ldap.createClient({ url: "ldaps://retroispk.ru:636" });
 
   client.bind("cn=admin,dc=example,dc=com", "admin123", (err) => {
     if (err) {
