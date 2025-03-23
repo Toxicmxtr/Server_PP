@@ -196,7 +196,7 @@ app.post("/registerLDAP", async (req, res) => {
     const searchOptions = {
       scope: "sub",
       filter: `(uid=${user_login})`,
-      attributes: ['uid', 'mail', 'userPassword']
+      attributes: ["uid", "mail", "userPassword"],
     };
 
     console.log("[LDAP] Выполнение поиска с фильтром:", searchOptions);
@@ -212,11 +212,16 @@ app.post("/registerLDAP", async (req, res) => {
       let userEmail = null;
 
       searchRes.on("searchEntry", (entry) => {
-        console.log('[LDAP] Найденная запись: ', entry.pojo);
-        
+        console.log("[LDAP] Найденная запись: ", entry.object);
+
         if (entry && entry.object) {
-          userDN = entry.object.dn;
-          userEmail = entry.object.mail || "";
+          userDN = entry.objectName; // Исправлено: корректное получение DN
+          const attributes = entry.attributes.reduce((acc, attr) => {
+            acc[attr.type] = attr.values[0];
+            return acc;
+          }, {});
+
+          userEmail = attributes.mail || "";
 
           console.log("[LDAP] Пользователь найден:", userDN);
           console.log("[LDAP] Email пользователя:", userEmail);
@@ -232,7 +237,7 @@ app.post("/registerLDAP", async (req, res) => {
           });
         } else {
           console.error("[LDAP Ошибка] Запись не содержит ожидаемых данных:", entry);
-          return sendResponse(400, { error: 'Некорректные данные LDAP.' });
+          return sendResponse(400, { error: "Некорректные данные LDAP." });
         }
       });
 
@@ -299,7 +304,6 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
-
 
 
 
