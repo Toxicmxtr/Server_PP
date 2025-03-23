@@ -193,10 +193,10 @@ app.post("/registerLDAP", async (req, res) => {
 
     console.log("[LDAP] Подключение успешно.");
 
-    // Создаем фильтр для поиска по логину пользователя
     const searchOptions = {
-      scope: "sub", // Поиск в подкаталогах
-      filter: `(uid=${user_login})`, // Фильтр поиска по uid (логину пользователя)
+      scope: "sub",
+      filter: `(uid=${user_login})`,
+      attributes: ['uid', 'mail', 'userPassword']
     };
 
     console.log("[LDAP] Выполнение поиска с фильтром:", searchOptions);
@@ -212,19 +212,15 @@ app.post("/registerLDAP", async (req, res) => {
       let userEmail = null;
 
       searchRes.on("searchEntry", (entry) => {
-        // Логируем всю запись, чтобы посмотреть, какие данные приходят
-        console.log("[LDAP] Найденная запись:", entry);
+        console.log('[LDAP] Найденная запись: ', entry.pojo);
         
-        // Проверяем, существует ли entry.object и есть ли нужные поля
         if (entry && entry.object) {
-          userDN = entry.object.dn; // Проверяем, есть ли dn
-          userEmail = entry.object.mail || ""; // Проверяем, есть ли mail
+          userDN = entry.object.dn;
+          userEmail = entry.object.mail || "";
 
-          // Логируем найденные данные
           console.log("[LDAP] Пользователь найден:", userDN);
           console.log("[LDAP] Email пользователя:", userEmail);
 
-          // Попытка авторизации сразу после нахождения пользователя
           client.bind(userDN, user_password, async (err) => {
             if (err) {
               console.error("[LDAP Ошибка] Неверный логин или пароль.");
@@ -236,6 +232,7 @@ app.post("/registerLDAP", async (req, res) => {
           });
         } else {
           console.error("[LDAP Ошибка] Запись не содержит ожидаемых данных:", entry);
+          return sendResponse(400, { error: 'Некорректные данные LDAP.' });
         }
       });
 
@@ -302,6 +299,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 
 
