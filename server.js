@@ -215,13 +215,8 @@ app.post("/registerLDAP", async (req, res) => {
         console.log("[LDAP] Найденная запись: ", entry.object);
 
         if (entry && entry.object) {
-          userDN = entry.objectName; // Исправлено: корректное получение DN
-          const attributes = entry.attributes.reduce((acc, attr) => {
-            acc[attr.type] = attr.values[0];
-            return acc;
-          }, {});
-
-          userEmail = attributes.mail || "";
+          userDN = entry.object.dn;
+          userEmail = entry.object.mail || "";
 
           console.log("[LDAP] Пользователь найден:", userDN);
           console.log("[LDAP] Email пользователя:", userEmail);
@@ -304,7 +299,6 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
-
 
 
 // Маршрут для входа
