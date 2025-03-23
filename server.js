@@ -212,11 +212,17 @@ app.post("/registerLDAP", async (req, res) => {
       let userEmail = null;
 
       searchRes.on("searchEntry", (entry) => {
-        console.log("[LDAP] Найденная запись:", entry.object); // Добавляем лог для того, чтобы видеть, что возвращает LDAP
-        if (entry && entry.object && entry.object.dn) {
-          userDN = entry.object.dn;
-          userEmail = entry.object.mail || "";
+        // Логируем всю запись, чтобы посмотреть, какие данные приходят
+        console.log("[LDAP] Найденная запись:", entry);
+        
+        // Проверяем, существует ли entry.object и есть ли нужные поля
+        if (entry && entry.object) {
+          userDN = entry.object.dn; // Проверяем, есть ли dn
+          userEmail = entry.object.mail || ""; // Проверяем, есть ли mail
+
+          // Логируем найденные данные
           console.log("[LDAP] Пользователь найден:", userDN);
+          console.log("[LDAP] Email пользователя:", userEmail);
 
           // Попытка авторизации сразу после нахождения пользователя
           client.bind(userDN, user_password, async (err) => {
@@ -296,6 +302,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 
 // Маршрут для входа
