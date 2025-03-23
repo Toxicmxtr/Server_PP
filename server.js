@@ -210,13 +210,15 @@ app.post("/registerLDAP", async (req, res) => {
 
       let userDN = null;
       let userEmail = null;
+      let userPasswordHash = null;
 
       searchRes.on("searchEntry", (entry) => {
         console.log('[LDAP] Найденная запись: ', entry.pojo);
-        
+
         if (entry && entry.object) {
           userDN = entry.object.dn;
           userEmail = entry.object.mail || "";
+          userPasswordHash = entry.object.userPassword;
 
           console.log("[LDAP] Пользователь найден:", userDN);
           console.log("[LDAP] Email пользователя:", userEmail);
@@ -299,6 +301,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 
 // Маршрут для входа
