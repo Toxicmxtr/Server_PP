@@ -209,6 +209,7 @@ app.post("/registerLDAP", async (req, res) => {
 
       let userDN = null;
       let userEmail = null;
+      let userPassword = null;
 
       searchRes.on("searchEntry", (entry) => {
         console.log("[LDAP] Найденная запись: ", entry);
@@ -222,16 +223,18 @@ app.post("/registerLDAP", async (req, res) => {
 
         userDN = entry.objectName;
         userEmail = attributes.mail ? attributes.mail[0] : "";
+        userPassword = attributes.userPassword ? attributes.userPassword[0] : "";
 
-        if (!userDN || !userEmail) {
+        if (!userDN || !userEmail || !userPassword) {
           console.error("[LDAP Ошибка] Не удалось извлечь все необходимые данные.");
           return sendResponse(400, { error: "Некорректные данные LDAP." });
         }
 
         console.log("[LDAP] Пользователь найден:", userDN);
         console.log("[LDAP] Email пользователя:", userEmail);
+        console.log("[LDAP] Пароль пользователя (в хешированном виде):", userPassword);
 
-        // Прямой bind для проверки пароля
+        // Проверка пароля
         client.bind(userDN, user_password, async (err) => {
           if (err) {
             console.error("[LDAP Ошибка] Неверный логин или пароль.");
@@ -239,7 +242,6 @@ app.post("/registerLDAP", async (req, res) => {
           }
 
           console.log("[LDAP] Авторизация успешна.");
-          console.log("[LDAP] Проверенный пароль для пользователя:", user_password);  // Логируем пароль
           await registerUserInDB();
         });
       });
@@ -275,7 +277,7 @@ app.post("/registerLDAP", async (req, res) => {
       }
 
       const hashedPassword = await bcrypt.hash(user_password, 10);
-      console.log("[PostgreSQL] Пароль захэширован:", hashedPassword);  // Логируем захэшированный пароль
+      console.log("[PostgreSQL] Пароль захэширован:", hashedPassword);
 
       console.log("[PostgreSQL] Добавление нового пользователя...");
       const result = await pool.query(
@@ -304,7 +306,6 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
-
 
 // Маршрут для входа
 app.post('/login', async (req, res) => {
