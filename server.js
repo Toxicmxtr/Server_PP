@@ -164,7 +164,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// маршрут для регистрации через LDAP
 app.post("/registerLDAP", async (req, res) => {
   console.log("Полученные данные:", req.body);
   const { user_login, user_email, user_password, user_phone_number } = req.body;
@@ -209,17 +208,27 @@ app.post("/registerLDAP", async (req, res) => {
           try {
             const existingUser = await pool.query(
               "SELECT user_id FROM users WHERE user_phone_number = $1",
-              [user_phone_number]
+              [String(user_phone_number)]
             );
 
             if (existingUser.rows.length > 0) {
               return res.status(400).json({ message: "Такой номер телефона уже зарегистрирован" });
             }
 
+            console.log("Данные для вставки:", {
+              user_phone_number: String(user_phone_number),
+              user_password: String(user_password),
+              user_acctag: String(user_login),
+              user_email: String(user_email),
+              user_LDAP: 1,
+            });
+
             const result = await pool.query(
               "INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) VALUES ($1, $2, $3, $4, $5) RETURNING user_id",
-              [user_phone_number, user_password, user_login, user_email, 1]
+              [String(user_phone_number), String(user_password), String(user_login), String(user_email), 1]
             );
+
+            console.log("Результат вставки:", result.rows);
 
             const userId = result.rows[0].user_id;
 
@@ -238,9 +247,6 @@ app.post("/registerLDAP", async (req, res) => {
     });
   });
 });
-
-
-
 
 // Маршрут для входа
 app.post('/login', async (req, res) => {
