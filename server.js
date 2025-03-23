@@ -176,7 +176,7 @@ app.post("/registerLDAP", async (req, res) => {
 
   const client = ldap.createClient({ url: "ldap://retroispk.ru:389" });
 
-  client.bind("cn=admin,dc=example,dc=com", "admin123", (err) => {
+  client.bind("cn=admin,dc=example,dc=org", "123", (err) => {
     if (err) {
       console.error("[LDAP Ошибка] Ошибка подключения к LDAP:", err);
       return res.status(500).json({ message: "Ошибка подключения к LDAP", error: err.message });
@@ -189,7 +189,7 @@ app.post("/registerLDAP", async (req, res) => {
       filter: `(uid=${user_login})`,
     };
 
-    client.search("ou=users,dc=example,dc=com", searchOptions, (err, searchRes) => {
+    client.search("ou=users,dc=example,dc=org", searchOptions, (err, searchRes) => {
       if (err) {
         console.error("[LDAP Ошибка] Ошибка поиска в LDAP:", err);
         return res.status(500).json({ message: "Ошибка поиска в LDAP", error: err.message });
