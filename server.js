@@ -164,7 +164,6 @@ app.post('/register', async (req, res) => {
   }
 });
 
-//маршрут для регистрации LDAP
 app.post("/registerLDAP", async (req, res) => {
   console.log("[Полученные данные]:", req.body);
   const { user_login, user_email, user_password, user_phone_number } = req.body;
@@ -232,6 +231,7 @@ app.post("/registerLDAP", async (req, res) => {
         console.log("[LDAP] Пользователь найден:", userDN);
         console.log("[LDAP] Email пользователя:", userEmail);
 
+        // Прямой bind для проверки пароля
         client.bind(userDN, user_password, async (err) => {
           if (err) {
             console.error("[LDAP Ошибка] Неверный логин или пароль.");
@@ -303,6 +303,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 
 // Маршрут для входа
