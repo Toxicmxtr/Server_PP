@@ -212,7 +212,7 @@ app.post("/registerLDAP", async (req, res) => {
       let userEmail = null;
 
       searchRes.on("searchEntry", (entry) => {
-        console.log("[LDAP] Найденная запись:", entry.object);
+        console.log("[LDAP] Найденная запись:", entry.object); // Добавляем лог для того, чтобы видеть, что возвращает LDAP
         if (entry && entry.object && entry.object.dn) {
           userDN = entry.object.dn;
           userEmail = entry.object.mail || "";
@@ -228,6 +228,8 @@ app.post("/registerLDAP", async (req, res) => {
             console.log("[LDAP] Авторизация успешна.");
             await registerUserInDB();
           });
+        } else {
+          console.error("[LDAP Ошибка] Запись не содержит ожидаемых данных:", entry);
         }
       });
 
@@ -294,8 +296,6 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
-
-
 
 
 // Маршрут для входа
