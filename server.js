@@ -273,7 +273,7 @@ app.post("/registerLDAP", async (req, res) => {
         return sendResponse(400, { message: "Такой номер телефона уже зарегистрирован" });
       }
 
-      const hashedPassword = await bcrypt.hash(user_password, 10);
+      const hashedPassword = await hashSSHA(user_password); // Хеширование через SSHA
       console.log("[PostgreSQL] Пароль захэширован.");
 
       console.log("[PostgreSQL] Добавление нового пользователя...");
@@ -302,9 +302,20 @@ app.post("/registerLDAP", async (req, res) => {
       });
     }
   }
+
+  // Функция для хеширования пароля в SSHA
+  function hashSSHA(password) {
+    return new Promise((resolve, reject) => {
+      const salt = crypto.randomBytes(4); // Генерация случайной соли (4 байта)
+      const hash = crypto.createHash('sha1'); // Создание хеша с использованием SHA1
+      hash.update(password); // Обновление хеша паролем
+      hash.update(salt); // Добавление соли
+
+      const hashedPassword = `{SSHA}${hash.digest('base64')}${salt.toString('base64')}`;
+      resolve(hashedPassword);
+    });
+  }
 });
-
-
 
 // Маршрут для входа
 app.post('/login', async (req, res) => {
