@@ -196,7 +196,7 @@ app.post("/registerLDAP", async (req, res) => {
     const searchOptions = {
       scope: "sub",
       filter: `(uid=${user_login})`,
-      attributes: ['uid', 'mail', 'userPassword']
+      attributes: ["uid", "mail", "userPassword"],
     };
 
     console.log("[LDAP] Выполнение поиска с фильтром:", searchOptions);
@@ -210,37 +210,45 @@ app.post("/registerLDAP", async (req, res) => {
 
       let userDN = null;
       let userEmail = null;
-      let userPasswordHash = null;
 
       searchRes.on("searchEntry", (entry) => {
-        console.log('[LDAP] Найденная запись: ', entry.pojo);
+        console.log("[LDAP] Найденная запись: ", entry);
 
-        if (entry && entry.object) {
-          userDN = entry.object.dn;
-          userEmail = entry.object.mail || "";
-          userPasswordHash = entry.object.userPassword;
+        const attributes = entry.attributes.reduce((acc, attr) => {
+          acc[attr.type] = attr.values;
+          return acc;
+        }, {});
 
-          console.log("[LDAP] Пользователь найден:", userDN);
-          console.log("[LDAP] Email пользователя:", userEmail);
+        console.log("[LDAP] Извлечённые атрибуты:", attributes);
 
-          client.bind(userDN, user_password, async (err) => {
-            if (err) {
-              console.error("[LDAP Ошибка] Неверный логин или пароль.");
-              return sendResponse(400, { message: "Неверный логин или пароль" });
-            }
+        userDN = entry.objectName;
+        userEmail = attributes.mail ? attributes.mail[0] : "";
 
-            console.log("[LDAP] Авторизация успешна.");
-            await registerUserInDB();
-          });
-        } else {
-          console.error("[LDAP Ошибка] Запись не содержит ожидаемых данных:", entry);
-          return sendResponse(400, { error: 'Некорректные данные LDAP.' });
+        if (!userDN || !userEmail) {
+          console.error("[LDAP Ошибка] Не удалось извлечь все необходимые данные.");
+          return sendResponse(400, { error: "Некорректные данные LDAP." });
         }
+
+        console.log("[LDAP] Пользователь найден:", userDN);
+        console.log("[LDAP] Email пользователя:", userEmail);
+
+        client.bind(userDN, user_password, async (err) => {
+          if (err) {
+            console.error("[LDAP Ошибка] Неверный логин или пароль.");
+            return sendResponse(400, { message: "Неверный логин или пароль" });
+          }
+
+          console.log("[LDAP] Авторизация успешна.");
+          await registerUserInDB();
+        });
       });
 
       searchRes.on("error", (searchErr) => {
         console.error("[LDAP Ошибка] Ошибка при выполнении поиска:", searchErr);
-        return sendResponse(500, { message: "Ошибка при выполнении поиска LDAP", error: searchErr.message });
+        return sendResponse(500, {
+          message: "Ошибка при выполнении поиска LDAP",
+          error: searchErr.message,
+        });
       });
 
       searchRes.on("end", () => {
@@ -272,13 +280,7 @@ app.post("/registerLDAP", async (req, res) => {
       const result = await pool.query(
         `INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) 
          VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
-        [
-          String(user_phone_number),
-          hashedPassword,
-          String(user_login),
-          String(user_email),
-          1,
-        ]
+        [String(user_phone_number), hashedPassword, String(user_login), String(user_email), 1]
       );
 
       console.log("[PostgreSQL] Пользователь успешно добавлен:", result.rows[0]);
@@ -301,6 +303,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 
 
