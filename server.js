@@ -176,11 +176,19 @@ app.post("/registerLDAP", async (req, res) => {
 
   const client = ldap.createClient({ url: "ldap://retroispk.ru:389" });
 
+  let responseSent = false;
+  function sendResponse(status, message) {
+    if (!responseSent) {
+      responseSent = true;
+      res.status(status).json(message);
+    }
+  }
+
   console.log("[LDAP] Попытка подключения к серверу...");
   client.bind("cn=admin,dc=example,dc=org", "123", (err) => {
     if (err) {
       console.error("[LDAP Ошибка] Ошибка подключения к LDAP:", err);
-      return res.status(500).json({ message: "Ошибка подключения к LDAP", error: err.message });
+      return sendResponse(500, { message: "Ошибка подключения к LDAP", error: err.message });
     }
 
     console.log("[LDAP] Подключение успешно.");
@@ -194,92 +202,96 @@ app.post("/registerLDAP", async (req, res) => {
     client.search("ou=users,dc=example,dc=org", searchOptions, (err, searchRes) => {
       if (err) {
         console.error("[LDAP Ошибка] Ошибка поиска в LDAP:", err);
-        return res.status(500).json({ message: "Ошибка поиска в LDAP", error: err.message });
+        return sendResponse(500, { message: "Ошибка поиска в LDAP", error: err.message });
       }
 
       console.log("[LDAP] Поиск пользователя начат...");
 
       let userDN = null;
+      let userEmail = null;
 
       searchRes.on("searchEntry", (entry) => {
-        console.log("[LDAP] Найденная запись:", entry);
-
-        // Проверяем наличие объекта и свойства dn
+        console.log("[LDAP] Найденная запись:", entry.object);
         if (entry && entry.object && entry.object.dn) {
           userDN = entry.object.dn;
+          userEmail = entry.object.mail || "";
           console.log("[LDAP] Пользователь найден:", userDN);
+
+          // Попытка авторизации сразу после нахождения пользователя
+          client.bind(userDN, user_password, async (err) => {
+            if (err) {
+              console.error("[LDAP Ошибка] Неверный логин или пароль.");
+              return sendResponse(400, { message: "Неверный логин или пароль" });
+            }
+
+            console.log("[LDAP] Авторизация успешна.");
+            await registerUserInDB();
+          });
         }
       });
 
       searchRes.on("error", (searchErr) => {
         console.error("[LDAP Ошибка] Ошибка при выполнении поиска:", searchErr);
-        return res.status(500).json({ message: "Ошибка при выполнении поиска LDAP", error: searchErr.message });
+        return sendResponse(500, { message: "Ошибка при выполнении поиска LDAP", error: searchErr.message });
       });
 
       searchRes.on("end", () => {
-        console.log("[LDAP] Поиск завершён. Результат:", userDN);
-
+        console.log("[LDAP] Поиск завершён.");
         if (!userDN) {
-          console.error("[LDAP Ошибка] Пользователь не найден.");
-          return res.status(400).json({ message: "Пользователь не найден в LDAP" });
+          return sendResponse(400, { message: "Пользователь не найден в LDAP" });
         }
-
-        console.log("[LDAP] Попытка авторизации пользователя...");
-        client.bind(userDN, user_password, async (err) => {
-          if (err) {
-            console.error("[LDAP Ошибка] Неверный логин или пароль.");
-            return res.status(400).json({ message: "Неверный логин или пароль" });
-          }
-
-          console.log("[LDAP] Авторизация успешна.");
-
-          try {
-            console.log("[PostgreSQL] Проверка существующего номера телефона...");
-            const existingUser = await pool.query(
-              "SELECT user_id FROM users WHERE user_phone_number = $1",
-              [String(user_phone_number)]
-            );
-
-            if (existingUser.rows.length > 0) {
-              console.error("[PostgreSQL Ошибка] Такой номер телефона уже зарегистрирован.");
-              return res.status(400).json({ message: "Такой номер телефона уже зарегистрирован" });
-            }
-
-            console.log("[PostgreSQL] Добавление нового пользователя...");
-            const result = await pool.query(
-              `INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) 
-              VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
-              [
-                String(user_phone_number),
-                String(user_password),
-                String(user_login),
-                String(user_email),
-                1
-              ]
-            );
-
-            console.log("[PostgreSQL] Пользователь успешно добавлен:", result.rows[0]);
-
-            res.status(201).json({
-              message: "Пользователь успешно зарегистрирован",
-              user_id: result.rows[0].user_id,
-            });
-          } catch (dbErr) {
-            console.error("[PostgreSQL Ошибка] Ошибка при добавлении пользователя:", dbErr);
-            res.status(500).json({ message: "Ошибка при регистрации", error: dbErr.message });
-          } finally {
-            client.unbind((unbindErr) => {
-              if (unbindErr) {
-                console.error("[LDAP Ошибка] Ошибка при отключении:", unbindErr);
-              } else {
-                console.log("[LDAP] Клиент успешно отключён.");
-              }
-            });
-          }
-        });
       });
     });
   });
+
+  async function registerUserInDB() {
+    try {
+      console.log("[PostgreSQL] Проверка существующего номера телефона...");
+      const existingUser = await pool.query(
+        "SELECT user_id FROM users WHERE user_phone_number = $1",
+        [String(user_phone_number)]
+      );
+
+      if (existingUser.rows.length > 0) {
+        console.error("[PostgreSQL Ошибка] Такой номер телефона уже зарегистрирован.");
+        return sendResponse(400, { message: "Такой номер телефона уже зарегистрирован" });
+      }
+
+      const hashedPassword = await bcrypt.hash(user_password, 10);
+      console.log("[PostgreSQL] Пароль захэширован.");
+
+      console.log("[PostgreSQL] Добавление нового пользователя...");
+      const result = await pool.query(
+        `INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) 
+         VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
+        [
+          String(user_phone_number),
+          hashedPassword,
+          String(user_login),
+          String(user_email),
+          1,
+        ]
+      );
+
+      console.log("[PostgreSQL] Пользователь успешно добавлен:", result.rows[0]);
+
+      sendResponse(201, {
+        message: "Пользователь успешно зарегистрирован",
+        user_id: result.rows[0].user_id,
+      });
+    } catch (dbErr) {
+      console.error("[PostgreSQL Ошибка] Ошибка при добавлении пользователя:", dbErr);
+      sendResponse(500, { message: "Ошибка при регистрации", error: dbErr.message });
+    } finally {
+      client.unbind((unbindErr) => {
+        if (unbindErr) {
+          console.error("[LDAP Ошибка] Ошибка при отключении:", unbindErr);
+        } else {
+          console.log("[LDAP] Клиент успешно отключён.");
+        }
+      });
+    }
+  }
 });
 
 
