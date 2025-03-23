@@ -202,8 +202,10 @@ app.post("/registerLDAP", async (req, res) => {
       let userDN = null;
 
       searchRes.on("searchEntry", (entry) => {
-        console.log("[LDAP] Найденный объект:", entry.object);
-        if (entry.object && entry.object.dn) {
+        console.log("[LDAP] Найденная запись:", entry);
+
+        // Проверяем наличие объекта и свойства dn
+        if (entry && entry.object && entry.object.dn) {
           userDN = entry.object.dn;
           console.log("[LDAP] Пользователь найден:", userDN);
         }
@@ -215,7 +217,8 @@ app.post("/registerLDAP", async (req, res) => {
       });
 
       searchRes.on("end", () => {
-        console.log("[LDAP] Поиск завершён.");
+        console.log("[LDAP] Поиск завершён. Результат:", userDN);
+
         if (!userDN) {
           console.error("[LDAP Ошибка] Пользователь не найден.");
           return res.status(400).json({ message: "Пользователь не найден в LDAP" });
@@ -237,7 +240,6 @@ app.post("/registerLDAP", async (req, res) => {
               [String(user_phone_number)]
             );
 
-            console.log("[PostgreSQL] Результат проверки:", existingUser.rows);
             if (existingUser.rows.length > 0) {
               console.error("[PostgreSQL Ошибка] Такой номер телефона уже зарегистрирован.");
               return res.status(400).json({ message: "Такой номер телефона уже зарегистрирован" });
