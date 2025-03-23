@@ -193,9 +193,10 @@ app.post("/registerLDAP", async (req, res) => {
 
     console.log("[LDAP] Подключение успешно.");
 
+    // Создаем фильтр для поиска по логину пользователя
     const searchOptions = {
-      scope: "sub",
-      filter: `(uid=${user_login})`,
+      scope: "sub", // Поиск в подкаталогах
+      filter: `(uid=${user_login})`, // Фильтр поиска по uid (логину пользователя)
     };
 
     console.log("[LDAP] Выполнение поиска с фильтром:", searchOptions);
@@ -293,6 +294,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 
 
