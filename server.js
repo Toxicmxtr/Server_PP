@@ -275,9 +275,10 @@ app.post("/registerLDAP", async (req, res) => {
   function checkPassword(storedSSHA, inputPassword) {
     const { salt, hash } = parseSSHA(storedSSHA);
     const hashOfInputPassword = crypto.createHash('sha1')
-      .update(inputPassword)
-      .update(salt)  // добавляем соль к паролю
-      .digest();  // хешируем
+      .update(inputPassword)   // добавляем пароль
+      .update(salt)            // добавляем соль
+      .digest();               // хешируем
+
     return hash.equals(hashOfInputPassword); // сравниваем хеши
   }
 
