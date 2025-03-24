@@ -210,7 +210,7 @@ app.post("/registerLDAP", async (req, res) => {
 
       console.log("[PostgreSQL] Добавление нового пользователя...");
       const result = await pool.query(
-        `INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) 
+        `INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, "user_LDAP") 
          VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
         [String(user_phone_number), user_password, String(user_login), String(user_email), 1]
       );
