@@ -208,14 +208,11 @@ app.post("/registerLDAP", async (req, res) => {
         return sendResponse(400, { message: "Такой номер телефона уже зарегистрирован" });
       }
 
-      const hashedPassword = await bcrypt.hash(user_password, 10);
-      console.log("[PostgreSQL] Пароль захэширован:", hashedPassword);
-
       console.log("[PostgreSQL] Добавление нового пользователя...");
       const result = await pool.query(
         `INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, user_LDAP) 
          VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
-        [String(user_phone_number), hashedPassword, String(user_login), String(user_email), 1]
+        [String(user_phone_number), user_password, String(user_login), String(user_email), 1]
       );
 
       console.log("[PostgreSQL] Пользователь успешно добавлен:", result.rows[0]);
