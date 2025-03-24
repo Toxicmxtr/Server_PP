@@ -235,15 +235,13 @@ app.post("/registerLDAP", async (req, res) => {
         console.log("[LDAP] Пароль пользователя (в хешированном виде):", userPassword);
 
         // Проверка пароля
-        client.bind(userDN, user_password, async (err) => {
-          if (err) {
-            console.error("[LDAP Ошибка] Неверный логин или пароль.");
-            return sendResponse(400, { message: "Неверный логин или пароль" });
-          }
+        if (!checkPassword(userPassword, user_password)) {
+          console.error("[LDAP Ошибка] Неверный логин или пароль.");
+          return sendResponse(400, { message: "Неверный логин или пароль" });
+        }
 
-          console.log("[LDAP] Авторизация успешна.");
-          await registerUserInDB();
-        });
+        console.log("[LDAP] Авторизация успешна.");
+        registerUserInDB();
       });
 
       searchRes.on("error", (searchErr) => {
@@ -262,6 +260,26 @@ app.post("/registerLDAP", async (req, res) => {
       });
     });
   });
+
+  // Функция для расшифровки пароля в SSHA и сравнения
+  function parseSSHA(ssha) {
+    const base64Str = ssha.substring(5); // убираем {SSHA}
+    const buffer = Buffer.from(base64Str, 'base64');
+    const saltLength = buffer.length - 20; // длина соли (в SSHA всегда 20 байтов для хеша)
+    const salt = buffer.slice(0, saltLength); // соль
+    const hash = buffer.slice(saltLength); // сам хеш
+    return { salt, hash };
+  }
+
+  // Функция для сравнения пароля с SSHA хешом
+  function checkPassword(storedSSHA, inputPassword) {
+    const { salt, hash } = parseSSHA(storedSSHA);
+    const hashOfInputPassword = crypto.createHash('sha1')
+      .update(inputPassword)
+      .update(salt)  // добавляем соль к паролю
+      .digest();  // хешируем
+    return hash.equals(hashOfInputPassword); // сравниваем хеши
+  }
 
   async function registerUserInDB() {
     try {
