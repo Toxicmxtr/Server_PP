@@ -332,6 +332,7 @@ app.post("/registerLDAP", async (req, res) => {
   }
 });
 
+
 // Маршрут для входа
 app.post('/login', async (req, res) => {
   const { identifier, user_password } = req.body;
