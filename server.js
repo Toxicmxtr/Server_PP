@@ -6,6 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const ldap = require('ldapjs');
+const bcrypt = require('bcrypt');
+
 
 const app = express();
 const port = 3000;
