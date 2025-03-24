@@ -268,17 +268,23 @@ app.post("/registerLDAP", async (req, res) => {
     const saltLength = buffer.length - 20; // длина соли (в SSHA всегда 20 байтов для хеша)
     const salt = buffer.slice(0, saltLength); // соль
     const hash = buffer.slice(saltLength); // сам хеш
+    console.log("[LDAP] Соль из пароля SSHA:", salt.toString('base64'));
+    console.log("[LDAP] Хеш из пароля SSHA:", hash.toString('base64'));
     return { salt, hash };
   }
 
   // Функция для сравнения пароля с SSHA хешом
   function checkPassword(storedSSHA, inputPassword) {
+    console.log("[LDAP] Проверка пароля для введённого пароля:", inputPassword);
+
     const { salt, hash } = parseSSHA(storedSSHA);
     const hashOfInputPassword = crypto.createHash('sha1')
       .update(inputPassword)   // добавляем пароль
       .update(salt)            // добавляем соль
       .digest();               // хешируем
 
+    console.log("[LDAP] Хеш для введённого пароля:", hashOfInputPassword.toString('base64'));
+    console.log("[LDAP] Хеш пароля из LDAP:", hash.toString('base64'));
     return hash.equals(hashOfInputPassword); // сравниваем хеши
   }
 
