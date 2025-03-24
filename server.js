@@ -166,11 +166,11 @@ app.post('/register', async (req, res) => {
 
 app.post("/registerLDAP", async (req, res) => {
   console.log("[Полученные данные]:", req.body);
-  const { user_login, user_email, user_password, user_phone_number } = req.body;
+  const { user_login, user_password, user_phone_number, user_email } = req.body;
 
-  if (!user_login || !user_email || !user_password || !user_phone_number) {
+  if (!user_login || !user_password || !user_phone_number || !user_email) {
     console.error("[Ошибка] Не все данные переданы!");
-    return res.status(400).json({ message: "Логин, email, телефон и пароль обязательны" });
+    return res.status(400).json({ message: "Логин, пароль, телефон и email обязательны" });
   }
 
   const client = ldap.createClient({ url: "ldap://retroispk.ru:389" });
@@ -184,109 +184,15 @@ app.post("/registerLDAP", async (req, res) => {
   }
 
   console.log("[LDAP] Попытка подключения к серверу...");
-  client.bind("cn=admin,dc=example,dc=org", "123", (err) => {
+  client.bind(`uid=${user_login},ou=users,dc=example,dc=org`, user_password, (err) => {
     if (err) {
-      console.error("[LDAP Ошибка] Ошибка подключения к LDAP:", err);
-      return sendResponse(500, { message: "Ошибка подключения к LDAP", error: err.message });
+      console.error("[LDAP Ошибка] Неверный логин или пароль:", err);
+      return sendResponse(400, { message: "Неверный логин или пароль" });
     }
 
-    console.log("[LDAP] Подключение успешно.");
-
-    const searchOptions = {
-      scope: "sub",
-      filter: `(uid=${user_login})`,
-      attributes: ["uid", "mail", "userPassword"],
-    };
-
-    console.log("[LDAP] Выполнение поиска с фильтром:", searchOptions);
-    client.search("ou=users,dc=example,dc=org", searchOptions, (err, searchRes) => {
-      if (err) {
-        console.error("[LDAP Ошибка] Ошибка поиска в LDAP:", err);
-        return sendResponse(500, { message: "Ошибка поиска в LDAP", error: err.message });
-      }
-
-      console.log("[LDAP] Поиск пользователя начат...");
-
-      let userDN = null;
-      let userEmail = null;
-      let userPassword = null;
-
-      searchRes.on("searchEntry", (entry) => {
-        console.log("[LDAP] Найденная запись: ", entry);
-
-        const attributes = entry.attributes.reduce((acc, attr) => {
-          acc[attr.type] = attr.values;
-          return acc;
-        }, {});
-
-        console.log("[LDAP] Извлечённые атрибуты:", attributes);
-
-        userDN = entry.objectName;
-        userEmail = attributes.mail ? attributes.mail[0] : "";
-        userPassword = attributes.userPassword ? attributes.userPassword[0] : "";
-
-        if (!userDN || !userEmail || !userPassword) {
-          console.error("[LDAP Ошибка] Не удалось извлечь все необходимые данные.");
-          return sendResponse(400, { error: "Некорректные данные LDAP." });
-        }
-
-        console.log("[LDAP] Пользователь найден:", userDN);
-        console.log("[LDAP] Email пользователя:", userEmail);
-        console.log("[LDAP] Пароль пользователя (в хешированном виде):", userPassword);
-
-        // Проверка пароля
-        if (!checkPassword(userPassword, user_password)) {
-          console.error("[LDAP Ошибка] Неверный логин или пароль.");
-          return sendResponse(400, { message: "Неверный логин или пароль" });
-        }
-
-        console.log("[LDAP] Авторизация успешна.");
-        registerUserInDB();
-      });
-
-      searchRes.on("error", (searchErr) => {
-        console.error("[LDAP Ошибка] Ошибка при выполнении поиска:", searchErr);
-        return sendResponse(500, {
-          message: "Ошибка при выполнении поиска LDAP",
-          error: searchErr.message,
-        });
-      });
-
-      searchRes.on("end", () => {
-        console.log("[LDAP] Поиск завершён.");
-        if (!userDN) {
-          return sendResponse(400, { message: "Пользователь не найден в LDAP" });
-        }
-      });
-    });
+    console.log("[LDAP] Аутентификация успешна.");
+    registerUserInDB();
   });
-
-  // Функция для расшифровки пароля в SSHA и сравнения
-  function parseSSHA(ssha) {
-    const base64Str = ssha.substring(5); // убираем {SSHA}
-    const buffer = Buffer.from(base64Str, 'base64');
-    const saltLength = buffer.length - 20; // длина соли (в SSHA всегда 20 байтов для хеша)
-    const salt = buffer.slice(0, saltLength); // соль
-    const hash = buffer.slice(saltLength); // сам хеш
-    console.log("[LDAP] Соль из пароля SSHA:", salt.toString('base64'));
-    console.log("[LDAP] Хеш из пароля SSHA:", hash.toString('base64'));
-    return { salt, hash };
-  }
-
-  // Функция для сравнения пароля с SSHA хешом
-  function checkPassword(storedSSHA, inputPassword) {
-    console.log("[LDAP] Проверка пароля для введённого пароля:", inputPassword);
-
-    const { salt, hash } = parseSSHA(storedSSHA);
-    const hashOfInputPassword = crypto.createHash('sha1')
-      .update(inputPassword)   // добавляем пароль
-      .update(salt)            // добавляем соль
-      .digest();               // хешируем
-
-    console.log("[LDAP] Хеш для введённого пароля:", hashOfInputPassword.toString('base64'));
-    console.log("[LDAP] Хеш пароля из LDAP:", hash.toString('base64'));
-    return hash.equals(hashOfInputPassword); // сравниваем хеши
-  }
 
   async function registerUserInDB() {
     try {
@@ -331,6 +237,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 
 // Маршрут для входа
