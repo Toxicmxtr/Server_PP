@@ -779,6 +779,35 @@ app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
   }
 });
 
+// Маршрут для редактирования названия колонки
+app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
+  const { boardId, columnId } = req.params;
+  const { newName } = req.body;
+
+  try {
+    // Проверяем, существует ли колонка
+    const columnCheck = await pool.query(
+      'SELECT * FROM columns WHERE column_id = $1 AND board_id = $2',
+      [columnId, boardId]
+    );
+    if (columnCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Колонка не найдена' });
+    }
+
+    // Обновляем название колонки
+    await pool.query(
+      'UPDATE columns SET column_name = $1 WHERE column_id = $2',
+      [newName, columnId]
+    );
+
+    console.log(`Колонка с ID ${columnId} обновлена на "${newName}"`);
+    res.status(200).json({ message: 'Колонка успешно обновлена' });
+  } catch (err) {
+    console.error('Ошибка при редактировании колонки:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 
 // Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
