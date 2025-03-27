@@ -829,6 +829,45 @@ app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
   }
 });
 
+// Маршрут для удаления записи из колонки
+app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
+  const { boardId, columnId } = req.params;
+  const { textToDelete } = req.body; // Текст для удаления
+
+  try {
+    if (!textToDelete) {
+      return res.status(400).json({ error: 'Text to delete is required' });
+    }
+
+    // Получаем текущие записи в колонке
+    const columnResult = await pool.query('SELECT column_text FROM columns WHERE column_id = $1', [columnId]);
+
+    if (columnResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Column not found' });
+    }
+
+    let currentText = columnResult.rows[0].column_text || '[]';
+    let textArray = JSON.parse(currentText);
+
+    // Проверяем, есть ли запись в колонке
+    const textIndex = textArray.indexOf(textToDelete);
+    if (textIndex === -1) {
+      return res.status(404).json({ error: 'Text not found in column' });
+    }
+
+    // Удаляем запись из массива
+    textArray.splice(textIndex, 1);
+
+    // Обновляем столбец в базе данных
+    await pool.query('UPDATE columns SET column_text = $1 WHERE column_id = $2', [JSON.stringify(textArray), columnId]);
+
+    res.status(200).json({ success: 'Text deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting text from column:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 // Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
