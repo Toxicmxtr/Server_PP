@@ -785,13 +785,34 @@ app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
   const { newName } = req.body;
 
   try {
-    // Проверяем, существует ли колонка
+    // Проверяем, существует ли доска и колонка
+    const boardCheck = await pool.query(
+      'SELECT board_columns FROM boards WHERE board_id = $1',
+      [boardId]
+    );
+    if (boardCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Доска не найдена' });
+    }
+
     const columnCheck = await pool.query(
-      'SELECT * FROM columns WHERE column_id = $1 AND board_id = $2',
-      [columnId, boardId]
+      'SELECT * FROM columns WHERE column_id = $1',
+      [columnId]
     );
     if (columnCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Колонка не найдена' });
+    }
+
+    if (!newName || typeof newName !== 'string' || newName.trim() === '') {
+      return res.status(400).json({ message: 'Некорректное имя колонки' });
+    }
+
+    // Проверяем, принадлежит ли колонка доске
+    const boardColumns = boardCheck.rows[0].board_columns
+      .split(' ')
+      .map((id) => id.trim());
+
+    if (!boardColumns.includes(columnId)) {
+      return res.status(400).json({ message: 'Колонка не принадлежит доске' });
     }
 
     // Обновляем название колонки
