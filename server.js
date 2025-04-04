@@ -302,7 +302,7 @@ app.post('/forgot', async (req, res) => {
   }
 });
 
-//маршрут для выхода из доски обычным пользователем
+//выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
   const { board_id, user_id } = req.body;
 
@@ -311,7 +311,7 @@ app.post('/leaveBoard', async (req, res) => {
   }
 
   try {
-    // Получаем текущий список пользователей из board_users
+    // Получаем текущий список пользователей
     const result = await pool.query(
       'SELECT board_users FROM boards WHERE board_id = $1',
       [board_id]
@@ -321,13 +321,26 @@ app.post('/leaveBoard', async (req, res) => {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    let users = result.rows[0].board_users.replace(/[{}]/g, "").split(',');
-    users = users.filter(id => id !== user_id.toString()); // Удаляем пользователя
+    let users = result.rows[0].board_users; // Исходные данные
+
+    if (!users || typeof users !== 'string') {
+      return res.status(500).json({ message: 'Некорректный формат данных' });
+    }
+
+    // Удаляем пользователя, учитывая вложенные фигурные скобки
+    users = users
+      .replace(/[\{\}]/g, '') // Убираем все фигурные скобки
+      .split(',') // Разбиваем по запятым
+      .map(u => u.trim().replace(/^"(.*)"$/, '$1')) // Очищаем кавычки вокруг значений
+      .filter(u => u !== user_id.toString()); // Удаляем пользователя
+
+    // Формируем обновленную строку с учетом формата
+    const updatedUsers = `{${users.map(u => `"${u}"`).join(',')}}`;
 
     // Обновляем board_users в базе
     await pool.query(
       'UPDATE boards SET board_users = $1 WHERE board_id = $2',
-      [`{${users.join(',')}}`, board_id]
+      [updatedUsers, board_id]
     );
 
     res.status(200).json({ message: 'Пользователь покинул доску' });
@@ -337,6 +350,7 @@ app.post('/leaveBoard', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 app.get('/home/:id', async (req, res) => {
   const userId = req.params.id; // Получаем ID из параметров запроса
