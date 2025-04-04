@@ -302,6 +302,41 @@ app.post('/forgot', async (req, res) => {
   }
 });
 
+//маршрут для выхода из доски обычным пользователем
+app.post('/leaveBoard', async (req, res) => {
+  const { board_id, user_id } = req.body;
+
+  if (!board_id || !user_id) {
+    return res.status(400).json({ message: 'board_id и user_id обязательны' });
+  }
+
+  try {
+    // Получаем текущий список пользователей из board_users
+    const result = await pool.query(
+      'SELECT board_users FROM boards WHERE board_id = $1',
+      [board_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Доска не найдена' });
+    }
+
+    let users = result.rows[0].board_users.replace(/[{}]/g, "").split(',');
+    users = users.filter(id => id !== user_id.toString()); // Удаляем пользователя
+
+    // Обновляем board_users в базе
+    await pool.query(
+      'UPDATE boards SET board_users = $1 WHERE board_id = $2',
+      [`{${users.join(',')}}`, board_id]
+    );
+
+    res.status(200).json({ message: 'Пользователь покинул доску' });
+
+  } catch (err) {
+    console.error('Ошибка при выходе из доски:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
 
 app.get('/home/:id', async (req, res) => {
   const userId = req.params.id; // Получаем ID из параметров запроса
