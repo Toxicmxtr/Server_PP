@@ -302,7 +302,6 @@ app.post('/forgot', async (req, res) => {
   }
 });
 
-//загрузка пользователей таблицы
 app.get('/api/boards/:id/members', async (req, res) => {
   const boardId = req.params.id;
 
@@ -313,13 +312,27 @@ app.get('/api/boards/:id/members', async (req, res) => {
       return res.status(404).json({ error: 'Board not found' });
     }
 
+    // Если board_users в формате строки, преобразуем её в массив
     const userIdsRaw = boardResult.rows[0].board_users;
-    const userIds = userIdsRaw.map(id => parseInt(id)).filter(id => !isNaN(id));
 
-    if (userIds.length === 0) {
-      return res.json([]);
+    // Проверим, если это строка, то уберем фигурные скобки и разделим по запятой
+    let userIds;
+    if (typeof userIdsRaw === 'string') {
+      userIds = userIdsRaw
+        .replace(/[{}"]/g, '') // Убираем фигурные скобки и кавычки
+        .split(',') // Разделяем по запятой
+        .map(id => parseInt(id.trim())) // Преобразуем каждый ID в число
+        .filter(id => !isNaN(id)); // Фильтруем NaN значения
+    } else {
+      // Если это уже массив, просто приводим элементы к числам
+      userIds = userIdsRaw.map(id => parseInt(id)).filter(id => !isNaN(id));
     }
 
+    if (userIds.length === 0) {
+      return res.json([]); // Если пользователей нет, возвращаем пустой массив
+    }
+
+    // Получаем пользователей по id
     const usersResult = await pool.query(
       'SELECT user_name, user_acctag, avatar_url FROM users WHERE user_id = ANY($1::int[])',
       [userIds]
@@ -331,6 +344,7 @@ app.get('/api/boards/:id/members', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 //выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
