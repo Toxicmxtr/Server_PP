@@ -345,7 +345,6 @@ app.get('/api/boards/:id/members', async (req, res) => {
   }
 });
 
-
 //выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
   const { board_id, user_id } = req.body;
@@ -391,6 +390,52 @@ app.post('/leaveBoard', async (req, res) => {
 
   } catch (err) {
     console.error('Ошибка при выходе из доски:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+// Исключение пользователя из доски
+app.post('/kickUserFromBoard', async (req, res) => {
+  const { board_id, user_id } = req.body;
+
+  if (!board_id || !user_id) {
+    return res.status(400).json({ message: 'board_id и user_id обязательны' });
+  }
+
+  try {
+    // Получаем текущий список пользователей
+    const result = await pool.query(
+      'SELECT board_users FROM boards WHERE board_id = $1',
+      [board_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Доска не найдена' });
+    }
+
+    let users = result.rows[0].board_users;
+
+    if (!users || typeof users !== 'string') {
+      return res.status(500).json({ message: 'Некорректный формат данных' });
+    }
+
+    // Удаляем пользователя из строки
+    users = users
+      .replace(/[\{\}]/g, '')
+      .split(',')
+      .map(u => u.trim().replace(/^"(.*)"$/, '$1'))
+      .filter(u => u !== user_id.toString());
+
+    const updatedUsers = `{${users.map(u => `"${u}"`).join(',')}}`;
+
+    await pool.query(
+      'UPDATE boards SET board_users = $1 WHERE board_id = $2',
+      [updatedUsers, board_id]
+    );
+
+    res.status(200).json({ message: 'Пользователь исключён из доски' });
+  } catch (err) {
+    console.error('Ошибка при исключении пользователя:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
@@ -1106,7 +1151,6 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 // Проверка ссылки-приглашения
 app.get('/invite/:token', async (req, res) => {
