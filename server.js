@@ -302,6 +302,36 @@ app.post('/forgot', async (req, res) => {
   }
 });
 
+//загрузка пользователей таблицы
+app.get('/api/boards/:id/members', async (req, res) => {
+  const boardId = req.params.id;
+
+  try {
+    const boardResult = await pool.query('SELECT board_users FROM boards WHERE board_id = $1', [boardId]);
+
+    if (boardResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Board not found' });
+    }
+
+    const userIdsRaw = boardResult.rows[0].board_users;
+    const userIds = userIdsRaw.map(id => parseInt(id)).filter(id => !isNaN(id));
+
+    if (userIds.length === 0) {
+      return res.json([]);
+    }
+
+    const usersResult = await pool.query(
+      'SELECT user_name, user_acctag, avatar_url FROM users WHERE user_id = ANY($1::int[])',
+      [userIds]
+    );
+
+    res.json(usersResult.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 //выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
   const { board_id, user_id } = req.body;
