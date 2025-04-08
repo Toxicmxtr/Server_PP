@@ -332,9 +332,9 @@ app.get('/api/boards/:id/members', async (req, res) => {
       return res.json([]); // Если пользователей нет, возвращаем пустой массив
     }
 
-    // Получаем пользователей по id
+    // Получаем пользователей по id, добавляем user_id в выборку
     const usersResult = await pool.query(
-      'SELECT user_name, user_acctag, avatar_url FROM users WHERE user_id = ANY($1::int[])',
+      'SELECT user_id, user_name, user_acctag, avatar_url FROM users WHERE user_id = ANY($1::int[])',
       [userIds]
     );
 
@@ -344,6 +344,7 @@ app.get('/api/boards/:id/members', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 //выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
