@@ -989,7 +989,7 @@ app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
   try {
-    // Сначала получаем данные доски (цвет, создатель)
+    // Получаем данные доски (цвет, создатель)
     const boardResult = await pool.query(
       'SELECT board_colour, board_creator FROM boards WHERE board_id = $1',
       [boardId]
@@ -1001,25 +1001,45 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const board = boardResult.rows[0];
 
-    // Получаем все колонки, которые принадлежат доске по board_id
+    // Получаем все колонки доски
     const columnsResult = await pool.query(
-      `SELECT column_id, column_name, column_colour, column_text 
-       FROM columns 
+      `SELECT column_id, column_name, column_colour
+       FROM columns
        WHERE board_id = $1
-       ORDER BY column_id`, // Можно заменить на другой критерий сортировки, если нужно
+       ORDER BY column_id`,
       [boardId]
+    );
+
+    const columns = columnsResult.rows;
+
+    // Для каждой колонки получаем записи из таблицы records
+    const columnsWithRecords = await Promise.all(
+      columns.map(async (col) => {
+        const recordsResult = await pool.query(
+          'SELECT record_text FROM records WHERE column_id = $1 ORDER BY record_id',
+          [col.column_id]
+        );
+
+        const recordsTexts = recordsResult.rows.map(r => r.record_text);
+
+        return {
+          ...col,
+          records: recordsTexts,
+        };
+      })
     );
 
     res.json({
       board_colour: board.board_colour,
-      board_creator: board.board_creator.replace(/[{}"]/g, ''), // Убираем лишние символы
-      columns: columnsResult.rows,
+      board_creator: board.board_creator.replace(/[{}"]/g, ''),
+      columns: columnsWithRecords,
     });
   } catch (err) {
     console.error('Error fetching board data:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 
 // Удаление доски и связанных колонок
