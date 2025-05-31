@@ -979,7 +979,6 @@ app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
 });
 
 
-
 // Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
@@ -1251,7 +1250,7 @@ app.post('/invite/:token/respond', async (req, res) => {
   }
 });
 
-// Серверный код для добавления записи в колонку
+// Серверный код для добавления записи в колонку (без использования column_text)
 app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
   const { boardId, columnId } = req.params;
   const { newText } = req.body; // Новый текст для добавления
@@ -1262,34 +1261,26 @@ app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
       return res.status(400).json({ error: 'Text cannot be empty' });
     }
 
-    // Получаем текущий текст в колонке
-    const columnResult = await pool.query('SELECT column_text FROM columns WHERE column_id = $1', [columnId]);
+    // Проверяем, что колонка существует
+    const columnResult = await pool.query('SELECT column_id FROM columns WHERE column_id = $1 AND board_id = $2', [columnId, boardId]);
 
-    if (columnResult.rows.length > 0) {
-      let currentText = columnResult.rows[0].column_text || '[]'; // Если нет текста, инициализируем пустым массивом
-      let textArray = JSON.parse(currentText); // Преобразуем строку в массив
-
-      // Добавляем новый текст в массив
-      textArray.push(newText);
-
-      // Обновляем column_text в таблице columns
-      await pool.query('UPDATE columns SET column_text = $1 WHERE column_id = $2', [JSON.stringify(textArray), columnId]);
-
-      // Добавляем отдельную запись в таблицу records
-      await pool.query(
-        'INSERT INTO records (column_id, record_text) VALUES ($1, $2)',
-        [columnId, newText]
-      );
-
-      res.status(200).json({ success: 'Text added successfully' });
-    } else {
-      res.status(404).json({ error: 'Column not found' });
+    if (columnResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Column not found' });
     }
+
+    // Добавляем отдельную запись в таблицу records
+    await pool.query(
+      'INSERT INTO records (column_id, record_text) VALUES ($1, $2)',
+      [columnId, newText]
+    );
+
+    res.status(200).json({ success: 'Text added successfully' });
   } catch (err) {
     console.error('Error adding text to column:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 // Маршрут для увеличения просмотров поста
 app.patch('/posts/:id/views', async (req, res) => {
