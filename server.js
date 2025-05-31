@@ -772,7 +772,7 @@ app.get('/boards/user/:user_id', async (req, res) => {
   }
 });
 
-//занос данных о созданной доске и колонках
+// Занос данных о созданной доске и колонках
 app.post('/boards', async (req, res) => {
   const { board_name, board_colour, board_users } = req.body;
 
@@ -792,21 +792,21 @@ app.post('/boards', async (req, res) => {
     const boardId = boardResult.rows[0].board_id;
     console.log(`Создана доска с ID: ${boardId}, создатель: ${board_users[0]}`);
 
-    // Колонки по умолчанию
+    // Колонки по умолчанию (без column_text)
     const columns = [
-      { column_name: 'Факты', column_colour: 'white', column_text: null },
-      { column_name: 'Эмоции', column_colour: 'red', column_text: null },
-      { column_name: 'Преимущества', column_colour: 'yellow', column_text: null },
-      { column_name: 'Критика', column_colour: 'black', column_text: null },
-      { column_name: 'Решение', column_colour: 'green', column_text: null },
-      { column_name: 'Контроль', column_colour: 'blue', column_text: null },
+      { column_name: 'Факты', column_colour: 'white' },
+      { column_name: 'Эмоции', column_colour: 'red' },
+      { column_name: 'Преимущества', column_colour: 'yellow' },
+      { column_name: 'Критика', column_colour: 'black' },
+      { column_name: 'Решение', column_colour: 'green' },
+      { column_name: 'Контроль', column_colour: 'blue' },
     ];
 
     for (let column of columns) {
       await pool.query(
-        `INSERT INTO columns (column_name, column_colour, column_text, board_id)
-         VALUES ($1, $2, $3, $4)`,
-        [column.column_name, column.column_colour, column.column_text, boardId]
+        `INSERT INTO columns (column_name, column_colour, board_id)
+         VALUES ($1, $2, $3)`,
+        [column.column_name, column.column_colour, boardId]
       );
       console.log(`Создана колонка "${column.column_name}" для доски ${boardId}`);
     }
