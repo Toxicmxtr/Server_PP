@@ -979,13 +979,13 @@ app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
 });
 
 
-// Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
+
   try {
     // Получаем данные доски (цвет, создатель)
     const boardResult = await pool.query(
-      'SELECT board_colour, board_creator FROM boards WHERE board_id = $1',
+      'SELECT board_colour, board_creator, board_columns FROM boards WHERE board_id = $1',
       [boardId]
     );
 
@@ -1006,14 +1006,15 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const columns = columnsResult.rows;
 
-    // Получаем все записи для колонок этой доски одним запросом
+    // Получаем записи с avatar_url
     const recordsResult = await pool.query(
-      `SELECT column_id, record_text 
-       FROM records 
-       WHERE column_id IN (
+      `SELECT r.column_id, r.record_text, u.avatar_url
+       FROM records r
+       LEFT JOIN users u ON r.user_id = u.user_id
+       WHERE r.column_id IN (
          SELECT column_id FROM columns WHERE board_id = $1
        )
-       ORDER BY record_id`,
+       ORDER BY r.record_id`,
       [boardId]
     );
 
@@ -1023,7 +1024,11 @@ app.get('/boards/:boardId', async (req, res) => {
       if (!recordsByColumn[row.column_id]) {
         recordsByColumn[row.column_id] = [];
       }
-      recordsByColumn[row.column_id].push(row.record_text);
+
+      recordsByColumn[row.column_id].push({
+        record_text: row.record_text,
+        avatar_url: row.avatar_url || '', // если null, отдаём пустую строку
+      });
     }
 
     // Добавляем к каждой колонке её записи
@@ -1035,6 +1040,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.json({
       board_colour: board.board_colour,
       board_creator: board.board_creator.replace(/[{}"]/g, ''),
+      board_columns: board.board_columns,
       columns: columnsWithRecords,
     });
   } catch (err) {
@@ -1042,6 +1048,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 // Удаление доски, связанных колонок и записей
 app.delete('/boards/:boardId/delete', async (req, res) => {
