@@ -911,40 +911,36 @@ app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
   }
 });
 
-// Маршрут для редактирования названия колонки
+//маршрут для изменения названия колонки
 app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
   const { boardId, columnId } = req.params;
   const { newName } = req.body;
 
   try {
-    // Проверяем, существует ли доска и колонка
+    // Проверяем, существует ли доска
     const boardCheck = await pool.query(
-      'SELECT board_columns FROM boards WHERE board_id = $1',
+      'SELECT board_id FROM boards WHERE board_id = $1',
       [boardId]
     );
     if (boardCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
+    // Проверяем, существует ли колонка и принадлежит ли она доске
     const columnCheck = await pool.query(
-      'SELECT * FROM columns WHERE column_id = $1',
+      'SELECT board_id FROM columns WHERE column_id = $1',
       [columnId]
     );
     if (columnCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Колонка не найдена' });
     }
 
-    if (!newName || typeof newName !== 'string' || newName.trim() === '') {
-      return res.status(400).json({ message: 'Некорректное имя колонки' });
+    if (columnCheck.rows[0].board_id.toString() !== boardId) {
+      return res.status(400).json({ message: 'Колонка не принадлежит доске' });
     }
 
-    // Проверяем, принадлежит ли колонка доске
-    const boardColumns = boardCheck.rows[0].board_columns
-      .split(' ')
-      .map((id) => id.trim());
-
-    if (!boardColumns.includes(columnId)) {
-      return res.status(400).json({ message: 'Колонка не принадлежит доске' });
+    if (!newName || typeof newName !== 'string' || newName.trim() === '') {
+      return res.status(400).json({ message: 'Некорректное имя колонки' });
     }
 
     // Обновляем название колонки
@@ -960,6 +956,7 @@ app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 // Маршрут для удаления записи из колонки
 app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
