@@ -983,7 +983,7 @@ app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
 
   try {
-    // Получаем данные доски (цвет, создатель)
+    // Получаем данные доски (цвет, создатель, порядок колонок)
     const boardResult = await pool.query(
       'SELECT board_colour, board_creator, board_columns FROM boards WHERE board_id = $1',
       [boardId]
@@ -1024,7 +1024,6 @@ app.get('/boards/:boardId', async (req, res) => {
       if (!recordsByColumn[row.column_id]) {
         recordsByColumn[row.column_id] = [];
       }
-
       recordsByColumn[row.column_id].push({
         record_text: row.record_text,
         avatar_url: row.avatar_url || '', // если null, отдаём пустую строку
