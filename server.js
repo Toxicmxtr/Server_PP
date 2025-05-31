@@ -1044,17 +1044,14 @@ app.get('/boards/:boardId', async (req, res) => {
   }
 });
 
-
-
-
-// Удаление доски и связанных колонок
+// Удаление доски, связанных колонок и записей
 app.delete('/boards/:boardId/delete', async (req, res) => {
   const { boardId } = req.params;
 
   try {
-    // Получаем колонку board_columns из boards
+    // Проверяем, что доска существует
     const boardResult = await pool.query(
-      'SELECT board_columns FROM boards WHERE board_id = $1',
+      'SELECT board_id FROM boards WHERE board_id = $1',
       [boardId]
     );
 
@@ -1062,20 +1059,26 @@ app.delete('/boards/:boardId/delete', async (req, res) => {
       return res.status(404).json({ error: 'Board not found' });
     }
 
-    const boardColumns = boardResult.rows[0].board_columns.split(' ');
+    // Удаляем записи из records, связанные с колонками этой доски
+    await pool.query(
+      `DELETE FROM records 
+       WHERE column_id IN (SELECT column_id FROM columns WHERE board_id = $1)`,
+      [boardId]
+    );
 
-    // Удаляем связанные записи из таблицы columns
-    await pool.query('DELETE FROM columns WHERE column_id = ANY($1)', [boardColumns]);
+    // Удаляем колонки доски
+    await pool.query('DELETE FROM columns WHERE board_id = $1', [boardId]);
 
-    // Удаляем запись из таблицы boards
+    // Удаляем доску
     await pool.query('DELETE FROM boards WHERE board_id = $1', [boardId]);
 
-    res.status(200).json({ message: 'Board and related columns deleted successfully' });
+    res.status(200).json({ message: 'Board, related columns and records deleted successfully' });
   } catch (error) {
-    console.error('Error deleting board and columns:', error);
+    console.error('Error deleting board, columns, and records:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 //приглашение в доску
 app.post('/boards/:boardId/invite', async (req, res) => {
