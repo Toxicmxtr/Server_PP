@@ -302,6 +302,7 @@ app.post('/forgot', async (req, res) => {
   }
 });
 
+//вывод участников доски
 app.get('/api/boards/:id/members', async (req, res) => {
   const boardId = req.params.id;
 
@@ -311,28 +312,21 @@ app.get('/api/boards/:id/members', async (req, res) => {
     if (boardResult.rows.length === 0) {
       return res.status(404).json({ error: 'Board not found' });
     }
-
-    // Если board_users в формате строки, преобразуем её в массив
     const userIdsRaw = boardResult.rows[0].board_users;
-
-    // Проверим, если это строка, то уберем фигурные скобки и разделим по запятой
     let userIds;
     if (typeof userIdsRaw === 'string') {
       userIds = userIdsRaw
-        .replace(/[{}"]/g, '') // Убираем фигурные скобки и кавычки
-        .split(',') // Разделяем по запятой
-        .map(id => parseInt(id.trim())) // Преобразуем каждый ID в число
-        .filter(id => !isNaN(id)); // Фильтруем NaN значения
+        .replace(/[{}"]/g, '')
+        .split(',')
+        .map(id => parseInt(id.trim())) 
+        .filter(id => !isNaN(id));
     } else {
-      // Если это уже массив, просто приводим элементы к числам
       userIds = userIdsRaw.map(id => parseInt(id)).filter(id => !isNaN(id));
     }
 
     if (userIds.length === 0) {
-      return res.json([]); // Если пользователей нет, возвращаем пустой массив
+      return res.json([]);
     }
-
-    // Получаем пользователей по id, добавляем user_id в выборку
     const usersResult = await pool.query(
       'SELECT user_id, user_name, user_acctag, avatar_url FROM users WHERE user_id = ANY($1::int[])',
       [userIds]
@@ -344,7 +338,6 @@ app.get('/api/boards/:id/members', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 
 //выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
@@ -779,7 +772,7 @@ app.get('/boards/user/:user_id', async (req, res) => {
   }
 });
 
-// Маршрут для заноса данных о созданной доске
+//занос данных о созданной доске и колонках
 app.post('/boards', async (req, res) => {
   const { board_name, board_colour, board_users } = req.body;
 
@@ -793,14 +786,13 @@ app.post('/boards', async (req, res) => {
       INSERT INTO boards (board_name, board_colour, board_users, board_creator) 
       VALUES ($1, $2, $3, $4) RETURNING board_id
     `;
-    // Преобразуем board_users[0] в формат {"7"} (или другое число пользователя)
     const boardCreator = `{"${board_users[0]}"}`;
     const boardResult = await pool.query(insertBoardQuery, [board_name, board_colour, board_users, boardCreator]);
 
-    const boardId = boardResult.rows[0].board_id; // Получаем ID новой доски
+    const boardId = boardResult.rows[0].board_id;
     console.log(`Создана доска с ID: ${boardId}, создатель: ${board_users[0]}`);
 
-    // Создаем колонки для доски
+    // Колонки по умолчанию
     const columns = [
       { column_name: 'Факты', column_colour: 'white', column_text: null },
       { column_name: 'Эмоции', column_colour: 'red', column_text: null },
@@ -810,37 +802,35 @@ app.post('/boards', async (req, res) => {
       { column_name: 'Контроль', column_colour: 'blue', column_text: null },
     ];
 
-    // Вставляем колонки для доски в таблицу colum
-    const columnIds = []; // Массив для хранения column_id
+    const columnIds = [];
 
     for (let column of columns) {
       const columnResult = await pool.query(
-        'INSERT INTO columns (column_name, column_colour, column_text) VALUES ($1, $2, $3) RETURNING column_id',
-        [column.column_name, column.column_colour, column.column_text]
+        `INSERT INTO columns (column_name, column_colour, column_text, board_id)
+         VALUES ($1, $2, $3, $4) RETURNING column_id`,
+        [column.column_name, column.column_colour, column.column_text, boardId]
       );
-      const columnId = columnResult.rows[0].column_id; // Получаем column_id только что вставленной колонки
-      columnIds.push(columnId); // Добавляем column_id в массив
+
+      const columnId = columnResult.rows[0].column_id;
+      columnIds.push(columnId);
       console.log(`Создана колонка с ID: ${columnId}`);
     }
 
-    // Формируем строку с column_id через пробел
+    // Обновляем таблицу boards: сохраняем порядок колонок
     const boardColumnsString = columnIds.join(' ');
-    console.log(`Строка с column_id для доски: ${boardColumnsString}`);
-
-    // Обновляем таблицу boards и записываем column_ids через пробел в board_columns
     await pool.query(
       'UPDATE boards SET board_columns = $1 WHERE board_id = $2',
       [boardColumnsString, boardId]
     );
-
     console.log(`Обновлены board_columns для доски с ID: ${boardId}`);
 
-    res.status(201).json({ message: 'Доска и колонки успешно созданы' });
+    res.status(201).json({ message: 'Доска и колонки успешно созданы', board_id: boardId });
   } catch (err) {
     console.error('Ошибка сервера:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
