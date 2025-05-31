@@ -831,7 +831,6 @@ app.post('/boards', async (req, res) => {
   }
 });
 
-
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
   const { column_name, column_colour } = req.body;
@@ -848,10 +847,11 @@ app.post('/boards/:boardId/columns', async (req, res) => {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Вставляем новую колонку и получаем её column_id
+    // Вставляем новую колонку с указанием board_id и получаем её column_id
     const columnResult = await pool.query(
-      'INSERT INTO columns (column_name, column_colour, column_text) VALUES ($1, $2, $3) RETURNING column_id',
-      [column_name, column_colour, null]
+      `INSERT INTO columns (column_name, column_colour, column_text, board_id) 
+       VALUES ($1, $2, $3, $4) RETURNING column_id`,
+      [column_name, column_colour, null, boardId]
     );
 
     const columnId = columnResult.rows[0].column_id;
