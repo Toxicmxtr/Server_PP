@@ -1005,28 +1005,32 @@ app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
   try {
-    const result = await pool.query(
-      'SELECT board_columns, board_colour, board_creator FROM boards WHERE board_id = $1',
+    // Сначала получаем данные доски (цвет, создатель)
+    const boardResult = await pool.query(
+      'SELECT board_colour, board_creator FROM boards WHERE board_id = $1',
       [boardId]
     );
 
-    if (result.rows.length > 0) {
-      const board = result.rows[0];
-      const columnIds = board.board_columns.split(' '); // Получаем массив ID колонок
-
-      const columnsResult = await pool.query(
-        'SELECT column_id, column_name, column_colour, column_text FROM columns WHERE column_id = ANY($1) ORDER BY array_position($1, column_id)',
-        [columnIds]
-      );
-
-      res.json({
-        board_colour: board.board_colour,
-        board_creator: board.board_creator.replace(/[{}"]/g, ''), // Убираем лишние символы
-        columns: columnsResult.rows,
-      });
-    } else {
-      res.status(404).json({ error: 'Board not found' });
+    if (boardResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Board not found' });
     }
+
+    const board = boardResult.rows[0];
+
+    // Получаем все колонки, которые принадлежат доске по board_id
+    const columnsResult = await pool.query(
+      `SELECT column_id, column_name, column_colour, column_text 
+       FROM columns 
+       WHERE board_id = $1
+       ORDER BY column_id`, // Можно заменить на другой критерий сортировки, если нужно
+      [boardId]
+    );
+
+    res.json({
+      board_colour: board.board_colour,
+      board_creator: board.board_creator.replace(/[{}"]/g, ''), // Убираем лишние символы
+      columns: columnsResult.rows,
+    });
   } catch (err) {
     console.error('Error fetching board data:', err);
     res.status(500).json({ error: 'Internal Server Error' });
