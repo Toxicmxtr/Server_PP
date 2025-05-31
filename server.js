@@ -881,27 +881,27 @@ app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
   const { boardId, columnId } = req.params;
 
   try {
-    // Проверяем, существует ли доска и колонка
-    const boardCheck = await pool.query('SELECT board_columns FROM boards WHERE board_id = $1', [boardId]);
+    // Проверяем, существует ли доска
+    const boardCheck = await pool.query('SELECT board_id FROM boards WHERE board_id = $1', [boardId]);
     if (boardCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    const columnCheck = await pool.query('SELECT * FROM columns WHERE column_id = $1', [columnId]);
+    // Проверяем, существует ли колонка и принадлежит ли она доске
+    const columnCheck = await pool.query(
+      'SELECT board_id FROM columns WHERE column_id = $1',
+      [columnId]
+    );
     if (columnCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Колонка не найдена' });
     }
 
+    if (columnCheck.rows[0].board_id.toString() !== boardId) {
+      return res.status(400).json({ message: 'Колонка не принадлежит доске' });
+    }
+
     // Удаляем колонку из таблицы columns
     await pool.query('DELETE FROM columns WHERE column_id = $1', [columnId]);
-
-    // Обновляем board_columns, удаляя columnId
-    const updatedColumns = boardCheck.rows[0].board_columns
-      .split(' ')
-      .filter((id) => id !== columnId)
-      .join(' ');
-
-    await pool.query('UPDATE boards SET board_columns = $1 WHERE board_id = $2', [updatedColumns, boardId]);
 
     console.log(`Колонка с ID ${columnId} удалена из доски ${boardId}`);
     res.status(200).json({ message: 'Колонка успешно удалена' });
