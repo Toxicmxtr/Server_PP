@@ -1244,8 +1244,14 @@ app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
       // Добавляем новый текст в массив
       textArray.push(newText);
 
-      // Обновляем столбец в базе данных
+      // Обновляем column_text в таблице columns
       await pool.query('UPDATE columns SET column_text = $1 WHERE column_id = $2', [JSON.stringify(textArray), columnId]);
+
+      // Добавляем отдельную запись в таблицу records
+      await pool.query(
+        'INSERT INTO records (column_id, record_text) VALUES ($1, $2)',
+        [columnId, newText]
+      );
 
       res.status(200).json({ success: 'Text added successfully' });
     } else {
