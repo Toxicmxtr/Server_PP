@@ -1012,22 +1012,31 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const columns = columnsResult.rows;
 
-    // Для каждой колонки получаем записи из таблицы records
-    const columnsWithRecords = await Promise.all(
-      columns.map(async (col) => {
-        const recordsResult = await pool.query(
-          'SELECT record_text FROM records WHERE column_id = $1 ORDER BY record_id',
-          [col.column_id]
-        );
-
-        const recordsTexts = recordsResult.rows.map(r => r.record_text);
-
-        return {
-          ...col,
-          records: recordsTexts,
-        };
-      })
+    // Получаем все записи для колонок этой доски одним запросом
+    const recordsResult = await pool.query(
+      `SELECT column_id, record_text 
+       FROM records 
+       WHERE column_id IN (
+         SELECT column_id FROM columns WHERE board_id = $1
+       )
+       ORDER BY record_id`,
+      [boardId]
     );
+
+    // Группируем записи по column_id
+    const recordsByColumn = {};
+    for (const row of recordsResult.rows) {
+      if (!recordsByColumn[row.column_id]) {
+        recordsByColumn[row.column_id] = [];
+      }
+      recordsByColumn[row.column_id].push(row.record_text);
+    }
+
+    // Добавляем к каждой колонке её записи
+    const columnsWithRecords = columns.map(col => ({
+      ...col,
+      records: recordsByColumn[col.column_id] || []
+    }));
 
     res.json({
       board_colour: board.board_colour,
@@ -1039,6 +1048,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 
 
