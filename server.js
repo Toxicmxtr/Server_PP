@@ -802,27 +802,14 @@ app.post('/boards', async (req, res) => {
       { column_name: 'Контроль', column_colour: 'blue', column_text: null },
     ];
 
-    const columnIds = [];
-
     for (let column of columns) {
-      const columnResult = await pool.query(
+      await pool.query(
         `INSERT INTO columns (column_name, column_colour, column_text, board_id)
-         VALUES ($1, $2, $3, $4) RETURNING column_id`,
+         VALUES ($1, $2, $3, $4)`,
         [column.column_name, column.column_colour, column.column_text, boardId]
       );
-
-      const columnId = columnResult.rows[0].column_id;
-      columnIds.push(columnId);
-      console.log(`Создана колонка с ID: ${columnId}`);
+      console.log(`Создана колонка "${column.column_name}" для доски ${boardId}`);
     }
-
-    // Обновляем таблицу boards: сохраняем порядок колонок
-    const boardColumnsString = columnIds.join(' ');
-    await pool.query(
-      'UPDATE boards SET board_columns = $1 WHERE board_id = $2',
-      [boardColumnsString, boardId]
-    );
-    console.log(`Обновлены board_columns для доски с ID: ${boardId}`);
 
     res.status(201).json({ message: 'Доска и колонки успешно созданы', board_id: boardId });
   } catch (err) {
