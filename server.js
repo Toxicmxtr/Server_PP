@@ -979,7 +979,6 @@ app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
 });
 
 
-// Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
   try {
@@ -1006,14 +1005,15 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const columns = columnsResult.rows;
 
-    // Получаем все записи для колонок этой доски одним запросом
+    // Получаем все записи для колонок этой доски с user_id и avatar_url через JOIN
     const recordsResult = await pool.query(
-      `SELECT column_id, record_text 
-       FROM records 
-       WHERE column_id IN (
+      `SELECT r.record_id, r.column_id, r.record_text, r.user_id, u.avatar_url
+       FROM records r
+       LEFT JOIN users u ON r.user_id = u.user_id
+       WHERE r.column_id IN (
          SELECT column_id FROM columns WHERE board_id = $1
        )
-       ORDER BY record_id`,
+       ORDER BY r.record_id`,
       [boardId]
     );
 
@@ -1023,10 +1023,15 @@ app.get('/boards/:boardId', async (req, res) => {
       if (!recordsByColumn[row.column_id]) {
         recordsByColumn[row.column_id] = [];
       }
-      recordsByColumn[row.column_id].push(row.record_text);
+      recordsByColumn[row.column_id].push({
+        record_id: row.record_id,
+        text: row.record_text,
+        user_id: row.user_id,
+        avatar_url: row.avatar_url || null,
+      });
     }
 
-    // Добавляем к каждой колонке её записи
+    // Добавляем к каждой колонке её записи (массив объектов с текстом, user_id, avatar_url)
     const columnsWithRecords = columns.map(col => ({
       ...col,
       records: recordsByColumn[col.column_id] || []
@@ -1042,6 +1047,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 // Удаление доски, связанных колонок и записей
 app.delete('/boards/:boardId/delete', async (req, res) => {
