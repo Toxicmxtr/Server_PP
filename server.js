@@ -1176,7 +1176,7 @@ app.get('/invite/:token', async (req, res) => {
           return res.status(404).send('Invite not found or expired');
       }
 
-      const androidIntentLink = `intent://invite/${token}#Intent;scheme=retroispk;package=com.yourapp.package;end;`;
+      const androidIntentLink = `intent://invite/${token}#Intent;scheme=https;package=retroispk.app;end;`;
       const iosLink = `https://retroispk.ru/invite/${token}`;
 
       const userAgent = req.get('User-Agent');
