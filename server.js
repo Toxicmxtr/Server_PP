@@ -11,7 +11,7 @@ const ldap = require('ldapjs');
 const app = express();
 const port = 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
+// app.use(express.static(path.join(__dirname, 'public')));
 
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
