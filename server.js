@@ -19,7 +19,7 @@ app.use((req, res, next) => {
 });
 
 // Раздача статических файлов
-app.use('/.well-known', express.static(path.join(__dirname, '.well-known')));
+app.use('/.well-known', express.static(path.join(__dirname, 'public', '.well-known')));
 
 // Настройка CORS (для запросов с Flutter-приложения)
 app.use(cors());
