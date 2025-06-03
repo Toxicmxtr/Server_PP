@@ -790,9 +790,9 @@ app.post('/boards/:boardId/columns', async (req, res) => {
 
     // Вставляем новую колонку с указанием board_id и получаем её column_id
     const columnResult = await pool.query(
-      `INSERT INTO columns (column_name, column_colour, column_text, board_id) 
-       VALUES ($1, $2, $3, $4) RETURNING column_id`,
-      [column_name, column_colour, null, boardId]
+      `INSERT INTO columns (column_name, column_colour, board_id) 
+       VALUES ($1, $2, $3) RETURNING column_id`,
+      [column_name, column_colour, boardId]
     );
 
     const columnId = columnResult.rows[0].column_id;
@@ -804,7 +804,6 @@ app.post('/boards/:boardId/columns', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
-
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
