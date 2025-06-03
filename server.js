@@ -1011,7 +1011,6 @@ app.post('/boards', async (req, res) => {
   }
 });
 
-
 // Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
@@ -1253,21 +1252,35 @@ app.post('/invite/:token/respond', async (req, res) => {
   const { userId, response } = req.body; // response: 'accepted' или 'declined'
 
   try {
-    const result = await pool.query(
+    const inviteResult = await pool.query(
       'SELECT * FROM invites WHERE token = $1',
       [token]
     );
 
-    if (result.rows.length === 0) {
+    if (inviteResult.rows.length === 0) {
       return res.status(404).json({ error: 'Invite not found or expired' });
     }
 
+    const boardId = inviteResult.rows[0].board_id;
+
     if (response === 'accepted') {
-      // Добавляем пользователя в доску
-      await pool.query(
-        'INSERT INTO board_users (board_id, user_id) VALUES ($1, $2)',
-        [result.rows[0].board_id, userId]
-      );
+      // Добавляем пользователя в board_users таблицы boards
+      const boardResult = await pool.query('SELECT board_users FROM boards WHERE board_id = $1', [boardId]);
+
+      if (boardResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Board not found' });
+      }
+
+      let currentUsers = boardResult.rows[0].board_users || '{}';
+
+      // Проверяем, есть ли уже этот пользователь
+      if (!currentUsers.includes(`"${userId}"`)) {
+        // Формируем новый список пользователей
+        const updatedUsers = currentUsers.replace(/}$/, `,"${userId}"}`);
+
+        // Обновляем базу данных
+        await pool.query('UPDATE boards SET board_users = $1 WHERE board_id = $2', [updatedUsers, boardId]);
+      }
     }
 
     // Обновляем статус приглашения
@@ -1282,6 +1295,39 @@ app.post('/invite/:token/respond', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+//отображение названия доски
+app.get('/invite/:token/board-name', async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    const inviteResult = await pool.query(
+      'SELECT board_id FROM invites WHERE token = $1',
+      [token]
+    );
+
+    if (inviteResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Invite not found or expired' });
+    }
+
+    const boardId = inviteResult.rows[0].board_id;
+
+    const boardResult = await pool.query(
+      'SELECT board_name FROM boards WHERE board_id = $1',
+      [boardId]
+    );
+
+    if (boardResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Board not found' });
+    }
+
+    res.json({ boardName: boardResult.rows[0].board_name });
+  } catch (err) {
+    console.error('Error fetching board name:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 
 // Серверный код для добавления записи в колонку с user_id
 app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
