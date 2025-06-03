@@ -1274,18 +1274,23 @@ app.post('/invite/:token/respond', async (req, res) => {
 
       let currentUsers = boardResult.rows[0].board_users || '{}';
 
-      // Проверяем, есть ли уже этот пользователь
-      if (currentUsers.includes(`"${userId}"`)) {
-        // Уже добавлен — не повторяем
-      } else {
-        // Добавляем новую пару в конец объекта
-        const updatedUsers = currentUsers.replace(/}$/, `,"${userId}":"${userId}"}`);
+      // Преобразуем строку вида {5,8,12} в массив
+      let users = currentUsers
+        .replace(/[{}]/g, '')
+        .split(',')
+        .map(u => u.trim())
+        .filter(u => u.length > 0);
 
-        await pool.query(
-          'UPDATE boards SET board_users = $1 WHERE board_id = $2',
-          [updatedUsers, boardId]
-        );
+      if (!users.includes(userId.toString())) {
+        users.push(userId.toString());
       }
+
+      const updatedUsers = `{${users.join(',')}}`;
+
+      await pool.query(
+        'UPDATE boards SET board_users = $1 WHERE board_id = $2',
+        [updatedUsers, boardId]
+      );
     }
 
     // Обновляем статус приглашения
@@ -1300,7 +1305,6 @@ app.post('/invite/:token/respond', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 
 //отображение названия доски
