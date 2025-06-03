@@ -1246,12 +1246,12 @@ app.get('/invite/:token', async (req, res) => {
 // Обработка favicon.ico, чтобы браузер не слетал на корневой маршрут
 app.get('/favicon.ico', (req, res) => res.status(204));
 
-// Принятие или отклонение приглашения
 app.post('/invite/:token/respond', async (req, res) => {
   const { token } = req.params;
   const { userId, response } = req.body; // response: 'accepted' или 'declined'
 
   try {
+    // Получаем приглашение по токену
     const inviteResult = await pool.query(
       'SELECT * FROM invites WHERE token = $1',
       [token]
@@ -1264,22 +1264,41 @@ app.post('/invite/:token/respond', async (req, res) => {
     const boardId = inviteResult.rows[0].board_id;
 
     if (response === 'accepted') {
-      // Добавляем пользователя в board_users таблицы boards
-      const boardResult = await pool.query('SELECT board_users FROM boards WHERE board_id = $1', [boardId]);
+      // Получаем текущее значение board_users
+      const boardResult = await pool.query(
+        'SELECT board_users FROM boards WHERE board_id = $1',
+        [boardId]
+      );
 
       if (boardResult.rows.length === 0) {
         return res.status(404).json({ error: 'Board not found' });
       }
 
-      let currentUsers = boardResult.rows[0].board_users || '{}';
+      let currentUsersStr = boardResult.rows[0].board_users;
 
-      // Проверяем, есть ли уже этот пользователь
-      if (!currentUsers.includes(`"${userId}"`)) {
-        // Формируем новый список пользователей
-        const updatedUsers = currentUsers.replace(/}$/, `,"${userId}"}`);
+      // Если пусто, инициализируем пустым JSON-массивом
+      if (!currentUsersStr || currentUsersStr === '{}') {
+        currentUsersStr = '[]';
+      }
+
+      let currentUsers;
+      try {
+        currentUsers = JSON.parse(currentUsersStr);
+      } catch {
+        // Если парсинг не удался, обнуляем список
+        currentUsers = [];
+      }
+
+      // Проверяем, есть ли уже пользователь
+      if (!currentUsers.includes(userId)) {
+        currentUsers.push(userId);
+        const updatedUsersStr = JSON.stringify(currentUsers);
 
         // Обновляем базу данных
-        await pool.query('UPDATE boards SET board_users = $1 WHERE board_id = $2', [updatedUsers, boardId]);
+        await pool.query(
+          'UPDATE boards SET board_users = $1 WHERE board_id = $2',
+          [updatedUsersStr, boardId]
+        );
       }
     }
 
@@ -1295,6 +1314,7 @@ app.post('/invite/:token/respond', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 //отображение названия доски
 app.get('/invite/:token/board-name', async (req, res) => {
