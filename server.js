@@ -974,19 +974,23 @@ app.post('/boards', async (req, res) => {
   }
 
   try {
-    const creatorId = parseInt(board_users[0]); // предполагаем, что первый — создатель
-
-    const boardUsersStr = `{${board_users.map(id => `"${id}"`).join(',')}}`;
+    const creatorId = parseInt(board_users[0]);
 
     const insertBoardQuery = `
-      INSERT INTO boards (board_name, board_colour, board_users, user_id) 
-      VALUES ($1, $2, $3, $4) RETURNING board_id
+      INSERT INTO boards (board_name, board_colour, user_id) 
+      VALUES ($1, $2, $3) RETURNING board_id
     `;
 
-    const boardResult = await pool.query(insertBoardQuery, [board_name, board_colour, boardUsersStr, creatorId]);
-
+    const boardResult = await pool.query(insertBoardQuery, [board_name, board_colour, creatorId]);
     const boardId = boardResult.rows[0].board_id;
     console.log(`Создана доска с ID: ${boardId}, создатель: ${creatorId}`);
+
+    // Добавление создателя в таблицу boards_members
+    await pool.query(
+      'INSERT INTO boards_members (board_id, user_id) VALUES ($1, $2)',
+      [boardId, creatorId]
+    );
+    console.log(`Пользователь ${creatorId} добавлен в участники доски ${boardId}`);
 
     // Колонки по умолчанию
     const columns = [
@@ -1079,7 +1083,6 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 // Удаление доски, связанных колонок и записей
 app.delete('/boards/:boardId/delete', async (req, res) => {
