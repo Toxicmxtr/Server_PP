@@ -367,38 +367,18 @@ app.post('/kickUserFromBoard', async (req, res) => {
   }
 
   try {
-    // Получаем текущий список пользователей
-    const result = await pool.query(
-      'SELECT board_users FROM boards WHERE board_id = $1',
-      [board_id]
+    const check = await pool.query(
+      'SELECT * FROM boards_members WHERE board_id = $1 AND user_id = $2',
+      [board_id, user_id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Доска не найдена' });
+    if (check.rowCount === 0) {
+      return res.status(404).json({ message: 'Пользователь не является участником этой доски' });
     }
 
-    let users = result.rows[0].board_users;
-
-    if (!users || typeof users !== 'string') {
-      return res.status(500).json({ message: 'Некорректный формат данных' });
-    }
-
-    // Преобразуем строку в массив чисел
-    users = users
-      .replace(/[{}"]/g, '') // Убираем фигурные скобки и кавычки
-      .split(',')
-      .map(u => parseInt(u.trim(), 10)); // Преобразуем в массив чисел
-
-    // Удаляем пользователя
-    users = users.filter(u => u !== parseInt(user_id, 10)); // Удаляем пользователя по user_id
-
-    // Преобразуем массив обратно в строку
-    const updatedUsers = `{${users.map(u => `"${u}"`).join(',')}}`;
-
-    // Обновляем запись в базе данных
     await pool.query(
-      'UPDATE boards SET board_users = $1 WHERE board_id = $2',
-      [updatedUsers, board_id]
+      'DELETE FROM boards_members WHERE board_id = $1 AND user_id = $2',
+      [board_id, user_id]
     );
 
     res.status(200).json({ message: 'Пользователь исключён из доски' });
@@ -407,6 +387,7 @@ app.post('/kickUserFromBoard', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 app.get('/home/:id', async (req, res) => {
   const userId = req.params.id; // Получаем ID из параметров запроса
