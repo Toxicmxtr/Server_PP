@@ -304,29 +304,21 @@ app.post('/forgot', async (req, res) => {
 
 //вывод участников доски
 app.get('/api/boards/:id/members', async (req, res) => {
-  const boardId = req.params.id;
+  const boardId = parseInt(req.params.id);
 
   try {
-    const boardResult = await pool.query('SELECT board_users FROM boards WHERE board_id = $1', [boardId]);
+    // Получаем список user_id из таблицы boards_members по board_id
+    const membersResult = await pool.query(
+      'SELECT user_id FROM boards_members WHERE board_id = $1',
+      [boardId]
+    );
 
-    if (boardResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Board not found' });
-    }
-    const userIdsRaw = boardResult.rows[0].board_users;
-    let userIds;
-    if (typeof userIdsRaw === 'string') {
-      userIds = userIdsRaw
-        .replace(/[{}"]/g, '')
-        .split(',')
-        .map(id => parseInt(id.trim())) 
-        .filter(id => !isNaN(id));
-    } else {
-      userIds = userIdsRaw.map(id => parseInt(id)).filter(id => !isNaN(id));
-    }
-
-    if (userIds.length === 0) {
+    if (membersResult.rows.length === 0) {
       return res.json([]);
     }
+
+    const userIds = membersResult.rows.map(row => row.user_id);
+
     const usersResult = await pool.query(
       'SELECT user_id, user_name, user_acctag, avatar_url FROM users WHERE user_id = ANY($1::int[])',
       [userIds]
@@ -338,6 +330,7 @@ app.get('/api/boards/:id/members', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 //выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
