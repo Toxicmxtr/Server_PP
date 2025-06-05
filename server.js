@@ -1214,34 +1214,19 @@ app.post('/invite/:token/respond', async (req, res) => {
     const boardId = inviteResult.rows[0].board_id;
 
     if (response === 'accepted') {
-      const boardResult = await pool.query(
-        'SELECT board_users FROM boards WHERE board_id = $1',
-        [boardId]
+      // Проверка: уже добавлен?
+      const checkMember = await pool.query(
+        'SELECT * FROM boards_members WHERE board_id = $1 AND user_id = $2',
+        [boardId, userId]
       );
 
-      if (boardResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Board not found' });
+      if (checkMember.rowCount === 0) {
+        // Добавляем в boards_members
+        await pool.query(
+          'INSERT INTO boards_members (board_id, user_id) VALUES ($1, $2)',
+          [boardId, userId]
+        );
       }
-
-      let currentUsers = boardResult.rows[0].board_users || '{}';
-
-      // Преобразуем строку вида {5,8,12} в массив
-      let users = currentUsers
-        .replace(/[{}]/g, '')
-        .split(',')
-        .map(u => u.trim())
-        .filter(u => u.length > 0);
-
-      if (!users.includes(userId.toString())) {
-        users.push(userId.toString());
-      }
-
-      const updatedUsers = `{${users.join(',')}}`;
-
-      await pool.query(
-        'UPDATE boards SET board_users = $1 WHERE board_id = $2',
-        [updatedUsers, boardId]
-      );
     }
 
     // Обновляем статус приглашения
