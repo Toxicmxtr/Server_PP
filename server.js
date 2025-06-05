@@ -740,20 +740,17 @@ app.get('/posts', async (req, res) => {
 
 // Маршрут для получения досок пользователя
 app.get('/boards/user/:user_id', async (req, res) => {
-  const userId = req.params.user_id; // Получаем user_id из параметров запроса
+  const userId = parseInt(req.params.user_id);
 
   try {
-    // Выполняем запрос к базе данных для получения досок пользователя
     const result = await pool.query(
-      `SELECT 
-         boards.board_id, 
-         boards.board_name, 
-         boards.board_colour
-       FROM boards
-       WHERE board_users LIKE '%${userId}%'`, // Используем LIKE для поиска userId в строке
+      `SELECT b.board_id, b.board_name, b.board_colour
+       FROM boards b
+       JOIN boards_members bm ON b.board_id = bm.board_id
+       WHERE bm.user_id = $1`,
+      [userId]
     );
 
-    // Проверяем, есть ли доски для этого пользователя
     if (result.rows.length > 0) {
       const formattedBoards = result.rows.map(board => ({
         board_id: board.board_id,
@@ -761,7 +758,6 @@ app.get('/boards/user/:user_id', async (req, res) => {
         board_colour: board.board_colour,
       }));
 
-      // Возвращаем доски
       res.status(200).json(formattedBoards);
     } else {
       res.status(404).json({ message: 'Доски не найдены для этого пользователя' });
@@ -771,6 +767,7 @@ app.get('/boards/user/:user_id', async (req, res) => {
     res.status(500).json({ message: 'Ошибка на сервере' });
   }
 });
+
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
