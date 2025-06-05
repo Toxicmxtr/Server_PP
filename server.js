@@ -969,23 +969,26 @@ app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
 app.post('/boards', async (req, res) => {
   const { board_name, board_colour, board_users } = req.body;
 
-  if (!board_name || !board_colour || !board_users) {
-    return res.status(400).json({ message: 'Все поля обязательны' });
+  if (!board_name || !board_colour || !board_users || board_users.length === 0) {
+    return res.status(400).json({ message: 'Все поля обязательны, включая хотя бы одного пользователя' });
   }
 
   try {
-    // Вставляем новую доску с указанием создателя
+    const creatorId = parseInt(board_users[0]); // предполагаем, что первый — создатель
+
+    const boardUsersStr = `{${board_users.map(id => `"${id}"`).join(',')}}`;
+
     const insertBoardQuery = `
-      INSERT INTO boards (board_name, board_colour, board_users, board_creator) 
+      INSERT INTO boards (board_name, board_colour, board_users, user_id) 
       VALUES ($1, $2, $3, $4) RETURNING board_id
     `;
-    const boardCreator = `{"${board_users[0]}"}`;
-    const boardResult = await pool.query(insertBoardQuery, [board_name, board_colour, board_users, boardCreator]);
+
+    const boardResult = await pool.query(insertBoardQuery, [board_name, board_colour, boardUsersStr, creatorId]);
 
     const boardId = boardResult.rows[0].board_id;
-    console.log(`Создана доска с ID: ${boardId}, создатель: ${board_users[0]}`);
+    console.log(`Создана доска с ID: ${boardId}, создатель: ${creatorId}`);
 
-    // Колонки по умолчанию (без column_text)
+    // Колонки по умолчанию
     const columns = [
       { column_name: 'Факты', column_colour: 'white' },
       { column_name: 'Эмоции', column_colour: 'red' },
@@ -1011,13 +1014,15 @@ app.post('/boards', async (req, res) => {
   }
 });
 
+
 // Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
+
   try {
-    // Получаем данные доски (цвет, создатель)
+    // Получаем данные доски (цвет, ID создателя)
     const boardResult = await pool.query(
-      'SELECT board_colour, board_creator FROM boards WHERE board_id = $1',
+      'SELECT board_colour, user_id FROM boards WHERE board_id = $1',
       [boardId]
     );
 
@@ -1038,7 +1043,7 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const columns = columnsResult.rows;
 
-    // Получаем все записи для колонок этой доски одним запросом
+    // Получаем все записи для колонок этой доски
     const recordsResult = await pool.query(
       `SELECT column_id, record_text 
        FROM records 
@@ -1058,7 +1063,7 @@ app.get('/boards/:boardId', async (req, res) => {
       recordsByColumn[row.column_id].push(row.record_text);
     }
 
-    // Добавляем к каждой колонке её записи
+    // Добавляем записи к колонкам
     const columnsWithRecords = columns.map(col => ({
       ...col,
       records: recordsByColumn[col.column_id] || []
@@ -1066,7 +1071,7 @@ app.get('/boards/:boardId', async (req, res) => {
 
     res.json({
       board_colour: board.board_colour,
-      board_creator: board.board_creator.replace(/[{}"]/g, ''),
+      board_creator: board.user_id,
       columns: columnsWithRecords,
     });
   } catch (err) {
@@ -1074,6 +1079,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 // Удаление доски, связанных колонок и записей
 app.delete('/boards/:boardId/delete', async (req, res) => {
@@ -1117,56 +1123,42 @@ app.post('/boards/:boardId/invite', async (req, res) => {
   const { user_acctag, user_id } = req.body;
 
   try {
-    // Проверяем, существует ли доска и получаем её данные, включая board_creator
     const boardResult = await pool.query('SELECT * FROM boards WHERE board_id = $1', [boardId]);
 
     if (boardResult.rowCount === 0) {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Получаем board_creator
     const board = boardResult.rows[0];
-    const boardCreator = board.board_creator.replace(/[{}"]/g, '');
 
-    // Добавляем board_creator в ответ
-    if (!boardCreator) {
-      return res.status(500).json({ message: 'Ошибка: board_creator отсутствует в базе данных' });
+    if (board.user_id !== user_id) {
+      return res.status(403).json({ message: 'Вы не являетесь создателем этой доски' });
     }
 
-    // Проверяем, является ли вызывающий пользователь создателем
-    if (boardCreator !== user_id.toString()) {
-      return res.status(403).json({ message: 'Вы не являетесь создателем этой доски', board_creator: boardCreator });
-    }
-
-    // Ищем пользователя по user_acctag
     const userResult = await pool.query('SELECT * FROM users WHERE user_acctag = $1', [user_acctag]);
 
     if (userResult.rowCount === 0) {
-      return res.status(404).json({ message: 'Пользователь не найден', board_creator: boardCreator });
+      return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
     const invitedUserId = userResult.rows[0].user_id;
-
-    // Получаем текущий список пользователей
     let currentUsers = board.board_users || '{}';
 
-    // Проверяем, есть ли уже этот пользователь
     if (currentUsers.includes(`"${invitedUserId}"`)) {
-      return res.status(400).json({ message: 'Пользователь уже добавлен', board_creator: boardCreator });
+      return res.status(400).json({ message: 'Пользователь уже добавлен' });
     }
 
-    // Формируем новый список пользователей
     const updatedUsers = currentUsers.replace(/}$/, `,"${invitedUserId}"}`);
 
-    // Обновляем базу данных
     await pool.query('UPDATE boards SET board_users = $1 WHERE board_id = $2', [updatedUsers, boardId]);
 
-    return res.status(200).json({ message: 'Пользователь успешно приглашен', board_creator: boardCreator });
+    return res.status(200).json({ message: 'Пользователь успешно приглашен' });
   } catch (error) {
     console.error('Ошибка при приглашении пользователя:', error);
-    res.status(500).json({ message: 'Ошибка при приглашении пользователя', board_creator: null });
+    res.status(500).json({ message: 'Ошибка при приглашении пользователя' });
   }
 });
+
 
 // Обновленный маршрут для генерации ссылки-приглашения
 app.post('/boards/:boardId/invite-link', async (req, res) => {
