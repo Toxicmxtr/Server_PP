@@ -332,7 +332,7 @@ app.get('/api/boards/:id/members', async (req, res) => {
 });
 
 
-//выход из доски обычным пользователем
+// Выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
   const { board_id, user_id } = req.body;
 
@@ -341,45 +341,22 @@ app.post('/leaveBoard', async (req, res) => {
   }
 
   try {
-    // Получаем текущий список пользователей
     const result = await pool.query(
-      'SELECT board_users FROM boards WHERE board_id = $1',
-      [board_id]
+      'DELETE FROM boards_members WHERE board_id = $1 AND user_id = $2',
+      [board_id, user_id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Доска не найдена' });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Запись не найдена: пользователь не состоит в доске' });
     }
-
-    let users = result.rows[0].board_users; // Исходные данные
-
-    if (!users || typeof users !== 'string') {
-      return res.status(500).json({ message: 'Некорректный формат данных' });
-    }
-
-    // Удаляем пользователя, учитывая вложенные фигурные скобки
-    users = users
-      .replace(/[\{\}]/g, '') // Убираем все фигурные скобки
-      .split(',') // Разбиваем по запятым
-      .map(u => u.trim().replace(/^"(.*)"$/, '$1')) // Очищаем кавычки вокруг значений
-      .filter(u => u !== user_id.toString()); // Удаляем пользователя
-
-    // Формируем обновленную строку с учетом формата
-    const updatedUsers = `{${users.map(u => `"${u}"`).join(',')}}`;
-
-    // Обновляем board_users в базе
-    await pool.query(
-      'UPDATE boards SET board_users = $1 WHERE board_id = $2',
-      [updatedUsers, board_id]
-    );
 
     res.status(200).json({ message: 'Пользователь покинул доску' });
-
   } catch (err) {
     console.error('Ошибка при выходе из доски:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 // Исключение пользователя из доски
 app.post('/kickUserFromBoard', async (req, res) => {
@@ -1110,7 +1087,7 @@ app.delete('/boards/:boardId/delete', async (req, res) => {
 });
 
 
-//приглашение в доску
+// Приглашение пользователя в доску
 app.post('/boards/:boardId/invite', async (req, res) => {
   const { boardId } = req.params;
   const { user_acctag, user_id } = req.body;
@@ -1135,15 +1112,22 @@ app.post('/boards/:boardId/invite', async (req, res) => {
     }
 
     const invitedUserId = userResult.rows[0].user_id;
-    let currentUsers = board.board_users || '{}';
 
-    if (currentUsers.includes(`"${invitedUserId}"`)) {
+    // Проверка: есть ли уже такая запись в boards_members
+    const checkResult = await pool.query(
+      'SELECT * FROM boards_members WHERE board_id = $1 AND user_id = $2',
+      [boardId, invitedUserId]
+    );
+
+    if (checkResult.rowCount > 0) {
       return res.status(400).json({ message: 'Пользователь уже добавлен' });
     }
 
-    const updatedUsers = currentUsers.replace(/}$/, `,"${invitedUserId}"}`);
-
-    await pool.query('UPDATE boards SET board_users = $1 WHERE board_id = $2', [updatedUsers, boardId]);
+    // Добавляем в boards_members
+    await pool.query(
+      'INSERT INTO boards_members (board_id, user_id) VALUES ($1, $2)',
+      [boardId, invitedUserId]
+    );
 
     return res.status(200).json({ message: 'Пользователь успешно приглашен' });
   } catch (error) {
@@ -1151,6 +1135,7 @@ app.post('/boards/:boardId/invite', async (req, res) => {
     res.status(500).json({ message: 'Ошибка при приглашении пользователя' });
   }
 });
+
 
 
 // Обновленный маршрут для генерации ссылки-приглашения
