@@ -1310,6 +1310,25 @@ app.post('/invite/:token/respond', async (req, res) => {
           [boardId, userId]
         );
       }
+
+      // Получаем имя пользователя для записи в posts
+      const userResult = await pool.query(
+        'SELECT user_name FROM users WHERE user_id = $1',
+        [userId]
+      );
+
+      const userName = userResult.rows.length > 0 ? userResult.rows[0].user_name : 'Неизвестный пользователь';
+
+      // Добавляем запись в posts
+      const now = new Date();
+      const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+      await pool.query(
+        `INSERT INTO posts (post_user_id, post_text, post_date, post_time, board_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [userId, `Пользователь "${userName}" присоединился к доске по ссылке-приглашению`, postDate, postTime, boardId]
+      );
     }
 
     // Обновляем статус приглашения
@@ -1324,6 +1343,7 @@ app.post('/invite/:token/respond', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 
 //отображение названия доски
