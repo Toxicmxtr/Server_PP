@@ -165,6 +165,7 @@ app.post('/register', async (req, res) => {
   }
 });
 
+//регистрация LDAP
 app.post("/registerLDAP", async (req, res) => {
   console.log("[Полученные данные]:", req.body);
   const { user_login, user_password, user_phone_number, user_email } = req.body;
@@ -331,7 +332,7 @@ app.get('/api/boards/:id/members', async (req, res) => {
   }
 });
 
-
+//выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
   const { board_id, user_id } = req.body;
 
@@ -688,7 +689,6 @@ function isValidTime(time) {
   return regex.test(time);
 }
 
-// Обновленный роут для получения всех постов с фотографиями
 app.get('/posts', async (req, res) => {
   try {
     const posts = await pool.query(
@@ -698,12 +698,15 @@ app.get('/posts', async (req, res) => {
          posts.post_date, 
          posts.post_time, 
          posts.post_views, 
-         posts.post_picture,
+         posts.board_id,
+         boards.board_name,
+         boards.board_colour,
          users.user_name, 
          users.user_acctag, 
          users.avatar_url
        FROM posts
        JOIN users ON posts.post_user_id = users.user_id
+       JOIN boards ON posts.board_id = boards.board_id
        ORDER BY posts.post_date DESC, posts.post_time DESC`
     );
 
@@ -714,10 +717,12 @@ app.get('/posts', async (req, res) => {
         post_date: post.post_date,
         post_time: post.post_time,
         post_views: post.post_views,
-        post_picture: post.post_picture ? `https://retroispk.ru/posts/${post.post_picture}` : null,
+        // Убираем post_picture
         user_name: post.user_name || 'Неизвестный пользователь',
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
+        board_name: post.board_name,
+        board_colour: post.board_colour,
       }));
 
       res.status(200).json(formattedPosts);
@@ -729,6 +734,7 @@ app.get('/posts', async (req, res) => {
     res.status(500).json({ message: 'Ошибка на сервере' });
   }
 });
+
 
 // Маршрут для получения досок пользователя
 app.get('/boards/user/:user_id', async (req, res) => {
@@ -805,52 +811,6 @@ app.post('/boards/:boardId/columns', async (req, res) => {
   }
 });
 
-
-// Маршрут для добавления новой колонки к существующей доске
-// app.post('/boards/:boardId/columns', async (req, res) => {
-//   const { column_name, column_colour } = req.body;
-//   const { boardId } = req.params;
-
-//   if (!column_name || !column_colour) {
-//     return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
-//   }
-
-//   try {
-//     // Проверяем, существует ли доска с данным board_id
-//     const boardCheck = await pool.query('SELECT board_columns FROM boards WHERE board_id = $1', [boardId]);
-//     if (boardCheck.rows.length === 0) {
-//       return res.status(404).json({ message: 'Доска не найдена' });
-//     }
-
-//     // Вставляем новую колонку с указанием board_id и получаем её column_id
-//     const columnResult = await pool.query(
-//       `INSERT INTO columns (column_name, column_colour, column_text, board_id) 
-//        VALUES ($1, $2, $3, $4) RETURNING column_id`,
-//       [column_name, column_colour, null, boardId]
-//     );
-
-//     const columnId = columnResult.rows[0].column_id;
-//     console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
-
-//     // Обновляем board_columns, добавляя новую колонку
-//     const updatedColumns = boardCheck.rows[0].board_columns
-//       ? `${boardCheck.rows[0].board_columns} ${columnId}`
-//       : `${columnId}`;
-
-//     await pool.query(
-//       'UPDATE boards SET board_columns = $1 WHERE board_id = $2',
-//       [updatedColumns, boardId]
-//     );
-
-//     console.log(`Обновлены board_columns для доски с ID: ${boardId}`);
-
-//     res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
-//   } catch (err) {
-//     console.error('Ошибка при добавлении колонки:', err);
-//     res.status(500).json({ message: 'Ошибка сервера' });
-//   }
-// });
-
 //удаление колонки из доски
 app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
   const { boardId, columnId } = req.params;
@@ -908,8 +868,6 @@ app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
-
-
 
 //маршрут для изменения названия колонки
 app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
@@ -1163,7 +1121,6 @@ app.delete('/boards/:boardId/delete', async (req, res) => {
   }
 });
 
-
 // Приглашение пользователя в доску
 app.post('/boards/:boardId/invite', async (req, res) => {
   const { boardId } = req.params;
@@ -1365,8 +1322,6 @@ app.post('/invite/:token/respond', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
-
 
 //отображение названия доски
 app.get('/invite/:token/board-name', async (req, res) => {
