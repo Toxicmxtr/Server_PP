@@ -848,10 +848,14 @@ app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
 //маршрут для изменения названия колонки
 app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
   const { boardId, columnId } = req.params;
-  const { newName } = req.body;
+  const { newName, user_id } = req.body;
 
   try {
-    // Проверяем, существует ли доска
+    if (!user_id) {
+      return res.status(400).json({ message: 'user_id обязателен' });
+    }
+
+    // Проверка существования доски
     const boardCheck = await pool.query(
       'SELECT board_id FROM boards WHERE board_id = $1',
       [boardId]
@@ -860,9 +864,9 @@ app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Проверяем, существует ли колонка и принадлежит ли она доске
+    // Проверка существования колонки и принадлежности доске
     const columnCheck = await pool.query(
-      'SELECT board_id FROM columns WHERE column_id = $1',
+      'SELECT column_name, board_id FROM columns WHERE column_id = $1',
       [columnId]
     );
     if (columnCheck.rows.length === 0) {
@@ -877,10 +881,25 @@ app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
       return res.status(400).json({ message: 'Некорректное имя колонки' });
     }
 
-    // Обновляем название колонки
+    const oldName = columnCheck.rows[0].column_name;
+
+    // Обновление названия
     await pool.query(
       'UPDATE columns SET column_name = $1 WHERE column_id = $2',
       [newName, columnId]
+    );
+
+    // Запись в posts
+    const now = new Date();
+    const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+    const postText = `Изменено название колонки с "${oldName}" на "${newName}"`;
+
+    await pool.query(
+      `INSERT INTO posts (post_user_id, post_text, post_date, post_time, board_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user_id, postText, postDate, postTime, boardId]
     );
 
     console.log(`Колонка с ID ${columnId} обновлена на "${newName}"`);
@@ -890,7 +909,6 @@ app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
-
 
 // Маршрут для удаления одной записи из колонки
 app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
