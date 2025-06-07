@@ -1293,7 +1293,7 @@ app.get('/invite/:token/board-name', async (req, res) => {
 // Серверный код для добавления записи в колонку с user_id
 app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
   const { boardId, columnId } = req.params;
-  const { newText, userId } = req.body; // Добавляем userId
+  const { newText, userId } = req.body;
 
   try {
     if (!newText || newText.trim().length === 0) {
@@ -1318,12 +1318,31 @@ app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
       [columnId, newText, userId]
     );
 
+    // Получаем текущую дату и время
+    const now = new Date();
+    const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+    // Добавляем пост в таблицу posts
+    await pool.query(
+      `INSERT INTO posts (post_user_id, post_text, post_date, post_time, board_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        userId,
+        `Добавлена запись: ${newText}`,
+        postDate,
+        postTime,
+        boardId,
+      ]
+    );
+
     res.status(200).json({ success: 'Text added successfully' });
   } catch (err) {
     console.error('Error adding text to column:', err);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 // Маршрут для увеличения просмотров поста
 app.patch('/posts/:id/views', async (req, res) => {
