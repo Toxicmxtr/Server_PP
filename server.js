@@ -853,7 +853,7 @@ app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
          VALUES ($1, $2, $3, $4, $5)`,
         [
           user_id,
-          `Удалена колонка: ${columnName}`,
+          `Удалена колонка "${columnName}"`,
           date,
           time,
           boardId
@@ -1147,9 +1147,9 @@ app.post('/boards/:boardId/invite', async (req, res) => {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
-    const invitedUserId = userResult.rows[0].user_id;
+    const invitedUser = userResult.rows[0];
+    const invitedUserId = invitedUser.user_id;
 
-    // Проверка: есть ли уже такая запись в boards_members
     const checkResult = await pool.query(
       'SELECT * FROM boards_members WHERE board_id = $1 AND user_id = $2',
       [boardId, invitedUserId]
@@ -1159,10 +1159,19 @@ app.post('/boards/:boardId/invite', async (req, res) => {
       return res.status(400).json({ message: 'Пользователь уже добавлен' });
     }
 
-    // Добавляем в boards_members
     await pool.query(
       'INSERT INTO boards_members (board_id, user_id) VALUES ($1, $2)',
       [boardId, invitedUserId]
+    );
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const time = now.toTimeString().split(' ')[0];
+    const postText = `Пользователь "${invitedUser.user_name}" присоединился к доске`;
+
+    await pool.query(
+      `INSERT INTO posts (post_user_id, post_text, post_date, post_time, board_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user_id, postText, date, time, boardId]
     );
 
     return res.status(200).json({ message: 'Пользователь успешно приглашен' });
@@ -1171,8 +1180,6 @@ app.post('/boards/:boardId/invite', async (req, res) => {
     res.status(500).json({ message: 'Ошибка при приглашении пользователя' });
   }
 });
-
-
 
 // Обновленный маршрут для генерации ссылки-приглашения
 app.post('/boards/:boardId/invite-link', async (req, res) => {
