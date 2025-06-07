@@ -744,10 +744,8 @@ app.post('/boards/:boardId/columns', async (req, res) => {
     );
 
     const columnId = columnResult.rows[0].column_id;
-    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
-
-    // 🔽 ДОБАВЛЕНИЕ ЗАПИСИ В ТАБЛИЦУ posts
-    const postText = `Добавлена колонка: ${column_name}`;
+    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`)
+    const postText = `Добавлена колонка "${column_name}"`;
     const now = new Date();
     const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
@@ -1327,7 +1325,7 @@ app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
     const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
 
     // Формируем текст поста с названием колонки
-    const postText = `Добавлена запись: ${newText} в колонку: ${columnName}`;
+    const postText = `Добавлена запись "${newText}" в колонку "${columnName}"`;
 
     // Вставляем запись в posts
     await pool.query(
