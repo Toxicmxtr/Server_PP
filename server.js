@@ -332,7 +332,6 @@ app.get('/api/boards/:id/members', async (req, res) => {
 });
 
 
-// Выход из доски обычным пользователем
 app.post('/leaveBoard', async (req, res) => {
   const { board_id, user_id } = req.body;
 
@@ -341,6 +340,14 @@ app.post('/leaveBoard', async (req, res) => {
   }
 
   try {
+    // Проверяем имя пользователя
+    const userResult = await pool.query('SELECT user_name FROM users WHERE user_id = $1', [user_id]);
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+    const userName = userResult.rows[0].user_name;
+
+    // Удаляем пользователя из доски
     const result = await pool.query(
       'DELETE FROM boards_members WHERE board_id = $1 AND user_id = $2',
       [board_id, user_id]
@@ -350,12 +357,25 @@ app.post('/leaveBoard', async (req, res) => {
       return res.status(404).json({ message: 'Запись не найдена: пользователь не состоит в доске' });
     }
 
+    // Добавляем запись в posts
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const time = now.toTimeString().split(' ')[0];
+    const postText = `Пользователь "${userName}" покинул доску`;
+
+    await pool.query(
+      `INSERT INTO posts (post_user_id, post_text, post_date, post_time, board_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user_id, postText, date, time, board_id]
+    );
+
     res.status(200).json({ message: 'Пользователь покинул доску' });
   } catch (err) {
     console.error('Ошибка при выходе из доски:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 
 // Исключение пользователя из доски
