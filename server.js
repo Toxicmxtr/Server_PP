@@ -810,40 +810,57 @@ app.post('/boards/:boardId/columns', async (req, res) => {
 //   }
 // });
 
-// Маршрут для удаления колонки из доски
 app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
   const { boardId, columnId } = req.params;
+  const { user_id } = req.body;
 
   try {
-    // Проверяем, существует ли доска
-    const boardCheck = await pool.query('SELECT board_id FROM boards WHERE board_id = $1', [boardId]);
+    // Проверяем наличие user_id
+    if (!user_id) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // Проверяем существование доски
+    const boardCheck = await pool.query(
+      'SELECT board_id FROM boards WHERE board_id = $1',
+      [boardId]
+    );
     if (boardCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Проверяем, существует ли колонка и принадлежит ли она доске
-    const columnCheck = await pool.query(
-      'SELECT board_id FROM columns WHERE column_id = $1',
+    // Проверяем существование колонки и принадлежность доске
+    const columnResult = await pool.query(
+      'SELECT column_name, board_id FROM columns WHERE column_id = $1',
       [columnId]
     );
-    if (columnCheck.rows.length === 0) {
+    if (columnResult.rows.length === 0) {
       return res.status(404).json({ message: 'Колонка не найдена' });
     }
 
-    if (columnCheck.rows[0].board_id.toString() !== boardId) {
+    if (columnResult.rows[0].board_id.toString() !== boardId) {
       return res.status(400).json({ message: 'Колонка не принадлежит доске' });
     }
 
-    // Удаляем колонку из таблицы columns
+    const columnName = columnResult.rows[0].column_name;
+
+    // Удаление колонки
     await pool.query('DELETE FROM columns WHERE column_id = $1', [columnId]);
 
-    console.log(`Колонка с ID ${columnId} удалена из доски ${boardId}`);
+    // Запись действия в posts
+    await pool.query(
+      'INSERT INTO posts (user_id, board_id, action) VALUES ($1, $2, $3)',
+      [user_id, boardId, `Удалена колонка "${columnName}"`]
+    );
+
+    console.log(`Удалена колонка "${columnName}" (ID ${columnId}) с доски ${boardId}`);
     res.status(200).json({ message: 'Колонка успешно удалена' });
   } catch (err) {
     console.error('Ошибка при удалении колонки:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 //маршрут для изменения названия колонки
 app.put('/boards/:boardId/columns/:columnId', async (req, res) => {
