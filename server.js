@@ -774,49 +774,49 @@ app.post('/boards/:boardId/columns', async (req, res) => {
 
 
 // // Маршрут для добавления новой колонки к существующей доске
-// app.post('/boards/:boardId/columns', async (req, res) => {
-//   const { column_name, column_colour } = req.body;
-//   const { boardId } = req.params;
+app.post('/boards/:boardId/columns', async (req, res) => {
+  const { column_name, column_colour } = req.body;
+  const { boardId } = req.params;
 
-//   if (!column_name || !column_colour) {
-//     return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
-//   }
+  if (!column_name || !column_colour) {
+    return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
+  }
 
-//   try {
-//     // Проверяем, существует ли доска с данным board_id
-//     const boardCheck = await pool.query('SELECT board_columns FROM boards WHERE board_id = $1', [boardId]);
-//     if (boardCheck.rows.length === 0) {
-//       return res.status(404).json({ message: 'Доска не найдена' });
-//     }
+  try {
+    // Проверяем, существует ли доска с данным board_id
+    const boardCheck = await pool.query('SELECT board_columns FROM boards WHERE board_id = $1', [boardId]);
+    if (boardCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Доска не найдена' });
+    }
 
-//     // Вставляем новую колонку с указанием board_id и получаем её column_id
-//     const columnResult = await pool.query(
-//       `INSERT INTO columns (column_name, column_colour, column_text, board_id) 
-//        VALUES ($1, $2, $3, $4) RETURNING column_id`,
-//       [column_name, column_colour, null, boardId]
-//     );
+    // Вставляем новую колонку с указанием board_id и получаем её column_id
+    const columnResult = await pool.query(
+      `INSERT INTO columns (column_name, column_colour, column_text, board_id) 
+       VALUES ($1, $2, $3, $4) RETURNING column_id`,
+      [column_name, column_colour, null, boardId]
+    );
 
-//     const columnId = columnResult.rows[0].column_id;
-//     console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
+    const columnId = columnResult.rows[0].column_id;
+    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
 
-//     // Обновляем board_columns, добавляя новую колонку
-//     const updatedColumns = boardCheck.rows[0].board_columns
-//       ? `${boardCheck.rows[0].board_columns} ${columnId}`
-//       : `${columnId}`;
+    // Обновляем board_columns, добавляя новую колонку
+    const updatedColumns = boardCheck.rows[0].board_columns
+      ? `${boardCheck.rows[0].board_columns} ${columnId}`
+      : `${columnId}`;
 
-//     await pool.query(
-//       'UPDATE boards SET board_columns = $1 WHERE board_id = $2',
-//       [updatedColumns, boardId]
-//     );
+    await pool.query(
+      'UPDATE boards SET board_columns = $1 WHERE board_id = $2',
+      [updatedColumns, boardId]
+    );
 
-//     console.log(`Обновлены board_columns для доски с ID: ${boardId}`);
+    console.log(`Обновлены board_columns для доски с ID: ${boardId}`);
 
-//     res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
-//   } catch (err) {
-//     console.error('Ошибка при добавлении колонки:', err);
-//     res.status(500).json({ message: 'Ошибка сервера' });
-//   }
-// });
+    res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
+  } catch (err) {
+    console.error('Ошибка при добавлении колонки:', err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
 
 // Маршрут для удаления колонки из доски
 app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
