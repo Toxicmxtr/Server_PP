@@ -722,7 +722,7 @@ app.get('/boards/user/:user_id', async (req, res) => {
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
-  const { column_name, column_colour } = req.body;
+  const { column_name, column_colour, user_id } = req.body; // добавлен user_id
   const { boardId } = req.params;
 
   if (!column_name || !column_colour) {
@@ -746,12 +746,26 @@ app.post('/boards/:boardId/columns', async (req, res) => {
     const columnId = columnResult.rows[0].column_id;
     console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
 
+    // 🔽 ДОБАВЛЕНИЕ ЗАПИСИ В ТАБЛИЦУ posts
+    const postText = `Добавлена колонка: ${column_name}`;
+    const now = new Date();
+    const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+    await pool.query(
+      `INSERT INTO posts (post_text, post_user_id, post_date, post_time, board_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [postText, user_id, postDate, postTime, boardId]
+    );
+    // 🔼
+
     res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
   } catch (err) {
     console.error('Ошибка при добавлении колонки:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 // Маршрут для добавления новой колонки к существующей доске
 // app.post('/boards/:boardId/columns', async (req, res) => {
