@@ -376,9 +376,29 @@ app.post('/kickUserFromBoard', async (req, res) => {
       return res.status(404).json({ message: 'Пользователь не является участником этой доски' });
     }
 
+    // Получаем имя пользователя для записи в posts
+    const userResult = await pool.query(
+      'SELECT user_name FROM users WHERE user_id = $1',
+      [user_id]
+    );
+
+    const userName = userResult.rows.length > 0 ? userResult.rows[0].user_name : 'Неизвестный пользователь';
+
+    // Удаляем пользователя из участников доски
     await pool.query(
       'DELETE FROM boards_members WHERE board_id = $1 AND user_id = $2',
       [board_id, user_id]
+    );
+
+    // Добавляем запись в posts
+    const now = new Date();
+    const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
+
+    await pool.query(
+      `INSERT INTO posts (post_user_id, post_text, post_date, post_time, board_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [user_id, `Пользователь "${userName}" был исключен из доски`, postDate, postTime, board_id]
     );
 
     res.status(200).json({ message: 'Пользователь исключён из доски' });
@@ -387,6 +407,7 @@ app.post('/kickUserFromBoard', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 
 app.get('/home/:id', async (req, res) => {
