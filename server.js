@@ -722,11 +722,11 @@ app.get('/boards/user/:user_id', async (req, res) => {
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
-  const { column_name, column_colour, user_id } = req.body;
+  const { column_name, column_colour } = req.body;
   const { boardId } = req.params;
 
-  if (!column_name || !column_colour || !user_id) {
-    return res.status(400).json({ message: 'Название, цвет колонки и ID пользователя обязательны' });
+  if (!column_name || !column_colour) {
+    return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
   }
 
   try {
@@ -736,34 +736,16 @@ app.post('/boards/:boardId/columns', async (req, res) => {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Вставляем новую колонку и получаем её ID
+    // Вставляем новую колонку с указанием board_id и получаем её column_id
     const columnResult = await pool.query(
       `INSERT INTO columns (column_name, column_colour, board_id) 
        VALUES ($1, $2, $3) RETURNING column_id`,
       [column_name, column_colour, boardId]
     );
+
     const columnId = columnResult.rows[0].column_id;
+    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
 
-    // Получаем название только что добавленной колонки (на случай, если column_name был модифицирован БД-триггером)
-    const columnInfo = await pool.query(
-      'SELECT column_name FROM columns WHERE column_id = $1',
-      [columnId]
-    );
-    const finalColumnName = columnInfo.rows[0].column_name;
-
-    // Формируем запись в posts
-    const postText = `Добавлена колонка: ${finalColumnName}`;
-    const now = new Date();
-    const postDate = now.toISOString().split('T')[0];       // YYYY-MM-DD
-    const postTime = now.toTimeString().split(' ')[0];       // HH:MM:SS
-
-    await pool.query(
-      `INSERT INTO posts (post_text, post_user_id, post_date, post_time, board_id, column_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [postText, user_id, postDate, postTime, boardId, columnId]
-    );
-
-    console.log(`Создана новая колонка "${finalColumnName}" с ID: ${columnId} для доски ${boardId}`);
     res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
   } catch (err) {
     console.error('Ошибка при добавлении колонки:', err);
@@ -771,9 +753,7 @@ app.post('/boards/:boardId/columns', async (req, res) => {
   }
 });
 
-
-
-// // Маршрут для добавления новой колонки к существующей доске
+// Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
   const { column_name, column_colour } = req.body;
   const { boardId } = req.params;
@@ -1136,6 +1116,8 @@ app.post('/boards/:boardId/invite', async (req, res) => {
     res.status(500).json({ message: 'Ошибка при приглашении пользователя' });
   }
 });
+
+
 
 // Обновленный маршрут для генерации ссылки-приглашения
 app.post('/boards/:boardId/invite-link', async (req, res) => {
