@@ -722,11 +722,11 @@ app.get('/boards/user/:user_id', async (req, res) => {
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
-  const { column_name, column_colour } = req.body;
+  const { column_name, column_colour, user_id } = req.body;
   const { boardId } = req.params;
 
-  if (!column_name || !column_colour) {
-    return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
+  if (!column_name || !column_colour || !user_id) {
+    return res.status(400).json({ message: 'Название, цвет колонки и ID пользователя обязательны' });
   }
 
   try {
@@ -736,67 +736,87 @@ app.post('/boards/:boardId/columns', async (req, res) => {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Вставляем новую колонку с указанием board_id и получаем её column_id
+    // Вставляем новую колонку и получаем её ID
     const columnResult = await pool.query(
       `INSERT INTO columns (column_name, column_colour, board_id) 
        VALUES ($1, $2, $3) RETURNING column_id`,
       [column_name, column_colour, boardId]
     );
-
     const columnId = columnResult.rows[0].column_id;
-    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
 
-    res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
-  } catch (err) {
-    console.error('Ошибка при добавлении колонки:', err);
-    res.status(500).json({ message: 'Ошибка сервера' });
-  }
-});
-
-// Маршрут для добавления новой колонки к существующей доске
-app.post('/boards/:boardId/columns', async (req, res) => {
-  const { column_name, column_colour } = req.body;
-  const { boardId } = req.params;
-
-  if (!column_name || !column_colour) {
-    return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
-  }
-
-  try {
-    // Проверяем, существует ли доска с данным board_id
-    const boardCheck = await pool.query('SELECT board_columns FROM boards WHERE board_id = $1', [boardId]);
-    if (boardCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'Доска не найдена' });
-    }
-
-    // Вставляем новую колонку с указанием board_id и получаем её column_id
-    const columnResult = await pool.query(
-      `INSERT INTO columns (column_name, column_colour, column_text, board_id) 
-       VALUES ($1, $2, $3, $4) RETURNING column_id`,
-      [column_name, column_colour, null, boardId]
+    // Получаем название только что добавленной колонки (на случай, если column_name был модифицирован БД-триггером)
+    const columnInfo = await pool.query(
+      'SELECT column_name FROM columns WHERE column_id = $1',
+      [columnId]
     );
+    const finalColumnName = columnInfo.rows[0].column_name;
 
-    const columnId = columnResult.rows[0].column_id;
-    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
-
-    // Обновляем board_columns, добавляя новую колонку
-    const updatedColumns = boardCheck.rows[0].board_columns
-      ? `${boardCheck.rows[0].board_columns} ${columnId}`
-      : `${columnId}`;
+    // Формируем запись в posts
+    const postText = `Добавлена колонка: ${finalColumnName}`;
+    const now = new Date();
+    const postDate = now.toISOString().split('T')[0];       // YYYY-MM-DD
+    const postTime = now.toTimeString().split(' ')[0];       // HH:MM:SS
 
     await pool.query(
-      'UPDATE boards SET board_columns = $1 WHERE board_id = $2',
-      [updatedColumns, boardId]
+      `INSERT INTO posts (post_text, post_user_id, post_date, post_time, board_id, column_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [postText, user_id, postDate, postTime, boardId, columnId]
     );
 
-    console.log(`Обновлены board_columns для доски с ID: ${boardId}`);
-
+    console.log(`Создана новая колонка "${finalColumnName}" с ID: ${columnId} для доски ${boardId}`);
     res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
   } catch (err) {
     console.error('Ошибка при добавлении колонки:', err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
+
+
+// // Маршрут для добавления новой колонки к существующей доске
+// app.post('/boards/:boardId/columns', async (req, res) => {
+//   const { column_name, column_colour } = req.body;
+//   const { boardId } = req.params;
+
+//   if (!column_name || !column_colour) {
+//     return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
+//   }
+
+//   try {
+//     // Проверяем, существует ли доска с данным board_id
+//     const boardCheck = await pool.query('SELECT board_columns FROM boards WHERE board_id = $1', [boardId]);
+//     if (boardCheck.rows.length === 0) {
+//       return res.status(404).json({ message: 'Доска не найдена' });
+//     }
+
+//     // Вставляем новую колонку с указанием board_id и получаем её column_id
+//     const columnResult = await pool.query(
+//       `INSERT INTO columns (column_name, column_colour, column_text, board_id) 
+//        VALUES ($1, $2, $3, $4) RETURNING column_id`,
+//       [column_name, column_colour, null, boardId]
+//     );
+
+//     const columnId = columnResult.rows[0].column_id;
+//     console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
+
+//     // Обновляем board_columns, добавляя новую колонку
+//     const updatedColumns = boardCheck.rows[0].board_columns
+//       ? `${boardCheck.rows[0].board_columns} ${columnId}`
+//       : `${columnId}`;
+
+//     await pool.query(
+//       'UPDATE boards SET board_columns = $1 WHERE board_id = $2',
+//       [updatedColumns, boardId]
+//     );
+
+//     console.log(`Обновлены board_columns для доски с ID: ${boardId}`);
+
+//     res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
+//   } catch (err) {
+//     console.error('Ошибка при добавлении колонки:', err);
+//     res.status(500).json({ message: 'Ошибка сервера' });
+//   }
+// });
 
 // Маршрут для удаления колонки из доски
 app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
@@ -1116,8 +1136,6 @@ app.post('/boards/:boardId/invite', async (req, res) => {
     res.status(500).json({ message: 'Ошибка при приглашении пользователя' });
   }
 });
-
-
 
 // Обновленный маршрут для генерации ссылки-приглашения
 app.post('/boards/:boardId/invite-link', async (req, res) => {
