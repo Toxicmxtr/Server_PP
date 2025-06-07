@@ -1303,37 +1303,37 @@ app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    // Проверяем существование колонки и доски
+    // Получаем название колонки и проверяем, что она существует в этой доске
     const columnResult = await pool.query(
-      'SELECT column_id FROM columns WHERE column_id = $1 AND board_id = $2',
+      'SELECT column_name FROM columns WHERE column_id = $1 AND board_id = $2',
       [columnId, boardId]
     );
+
     if (columnResult.rows.length === 0) {
       return res.status(404).json({ error: 'Column not found' });
     }
 
-    // Добавляем запись с user_id
+    const columnName = columnResult.rows[0].column_name;
+
+    // Добавляем запись в records
     await pool.query(
       'INSERT INTO records (column_id, record_text, user_id) VALUES ($1, $2, $3)',
       [columnId, newText, userId]
     );
 
-    // Получаем текущую дату и время
+    // Получаем дату и время
     const now = new Date();
     const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const postTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
 
-    // Добавляем пост в таблицу posts
+    // Формируем текст поста с названием колонки
+    const postText = `Добавлена запись: ${newText} в колонку: ${columnName}`;
+
+    // Вставляем запись в posts
     await pool.query(
       `INSERT INTO posts (post_user_id, post_text, post_date, post_time, board_id)
        VALUES ($1, $2, $3, $4, $5)`,
-      [
-        userId,
-        `Добавлена запись: ${newText}`,
-        postDate,
-        postTime,
-        boardId,
-      ]
+      [userId, postText, postDate, postTime, boardId]
     );
 
     res.status(200).json({ success: 'Text added successfully' });
@@ -1342,7 +1342,6 @@ app.post('/boards/:boardId/columns/:columnId/add', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
 
 // Маршрут для увеличения просмотров поста
 app.patch('/posts/:id/views', async (req, res) => {
