@@ -33,7 +33,7 @@ const pool = new Pool({
 });
 
 // CRON: Удаление старых постов
-cron.schedule('*/1 * * * *', async () => {
+cron.schedule('0 0 * * *', async () => {
   try {
     const client = await pool.connect();
     try {
