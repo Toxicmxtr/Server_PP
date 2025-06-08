@@ -996,7 +996,7 @@ app.get('/boards/:boardId', async (req, res) => {
 
     // Получаем column_name по colour_id
     const colourResult = await pool.query(
-      'SELECT column_name FROM colours WHERE colour_id = $1',
+      'SELECT colour_name FROM colours WHERE colour_id = $1',
       [board.colour_id]
     );
 
