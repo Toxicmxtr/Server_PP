@@ -689,8 +689,15 @@ function isValidTime(time) {
   return regex.test(time);
 }
 
+//получение постов
 app.get('/posts', async (req, res) => {
   try {
+    const userId = req.query.user_id; // получаем user_id из query-параметров
+
+    if (!userId) {
+      return res.status(400).json({ message: 'user_id обязателен' });
+    }
+
     const posts = await pool.query(
       `SELECT 
          posts.post_id, 
@@ -707,7 +714,10 @@ app.get('/posts', async (req, res) => {
        FROM posts
        JOIN users ON posts.post_user_id = users.user_id
        JOIN boards ON posts.board_id = boards.board_id
-       ORDER BY posts.post_date DESC, posts.post_time DESC`
+       JOIN board_members ON posts.board_id = board_members.board_id
+       WHERE board_members.user_id = $1
+       ORDER BY posts.post_date DESC, posts.post_time DESC`,
+      [userId]
     );
 
     if (posts.rows.length > 0) {
@@ -717,7 +727,6 @@ app.get('/posts', async (req, res) => {
         post_date: post.post_date,
         post_time: post.post_time,
         post_views: post.post_views,
-        // Убираем post_picture
         user_name: post.user_name || 'Неизвестный пользователь',
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
