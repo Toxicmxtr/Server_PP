@@ -714,29 +714,30 @@ app.get('/boards/user/:user_id', async (req, res) => {
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
-  const { column_name, column_colour, user_id } = req.body; // добавлен user_id
+  const { column_name, column_colour, user_id } = req.body; // column_colour = colour_id
   const { boardId } = req.params;
 
   if (!column_name || !column_colour) {
-    return res.status(400).json({ message: 'Название и цвет колонки обязательны' });
+    return res.status(400).json({ message: 'Название колонки и column_colour обязательны' });
   }
 
   try {
-    // Проверяем, существует ли доска с данным board_id
+    // Проверяем, существует ли доска
     const boardCheck = await pool.query('SELECT board_id FROM boards WHERE board_id = $1', [boardId]);
     if (boardCheck.rows.length === 0) {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Вставляем новую колонку с указанием board_id и получаем её column_id
+    // Вставляем новую колонку с column_colour (colour_id)
     const columnResult = await pool.query(
-      `INSERT INTO columns (column_name, column_colour, board_id) 
+      `INSERT INTO columns (column_name, colour_id, board_id) 
        VALUES ($1, $2, $3) RETURNING column_id`,
       [column_name, column_colour, boardId]
     );
 
     const columnId = columnResult.rows[0].column_id;
-    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`)
+    console.log(`Создана новая колонка с ID: ${columnId} для доски ${boardId}`);
+
     const postText = `Добавлена колонка "${column_name}"`;
     const now = new Date();
     const postDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -747,7 +748,6 @@ app.post('/boards/:boardId/columns', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5)`,
       [postText, user_id, postDate, postTime, boardId]
     );
-    // 🔼
 
     res.status(201).json({ message: 'Колонка успешно добавлена', column_id: columnId });
   } catch (err) {
@@ -912,7 +912,6 @@ app.delete('/boards/:boardId/columns/:columnId/delete', async (req, res) => {
   }
 });
 
-// Занос данных о созданной доске и колонках
 app.post('/boards', async (req, res) => {
   const { board_name, board_colour, board_users } = req.body;
 
@@ -923,7 +922,7 @@ app.post('/boards', async (req, res) => {
   try {
     const creatorId = parseInt(board_users[0]);
 
-    // Получаем colour_id из таблицы colours по имени цвета
+    // Получаем colour_id из colours по имени цвета доски
     const colourResult = await pool.query(
       'SELECT colour_id FROM colours WHERE colour_name = $1',
       [board_colour]
@@ -935,23 +934,23 @@ app.post('/boards', async (req, res) => {
 
     const colourId = colourResult.rows[0].colour_id;
 
+    // Вставляем доску с colour_id
     const insertBoardQuery = `
       INSERT INTO boards (board_name, colour_id, user_id) 
       VALUES ($1, $2, $3) RETURNING board_id
     `;
-
     const boardResult = await pool.query(insertBoardQuery, [board_name, colourId, creatorId]);
     const boardId = boardResult.rows[0].board_id;
     console.log(`Создана доска с ID: ${boardId}, создатель: ${creatorId}`);
 
-    // Добавление создателя в таблицу boards_members
+    // Добавляем создателя в участники доски
     await pool.query(
       'INSERT INTO boards_members (board_id, user_id) VALUES ($1, $2)',
       [boardId, creatorId]
     );
     console.log(`Пользователь ${creatorId} добавлен в участники доски ${boardId}`);
 
-    // Колонки по умолчанию
+    // Колонки по умолчанию с цветами в виде имён
     const columns = [
       { column_name: 'Факты', column_colour: 'white' },
       { column_name: 'Эмоции', column_colour: 'red' },
@@ -962,12 +961,27 @@ app.post('/boards', async (req, res) => {
     ];
 
     for (let column of columns) {
-      await pool.query(
-        `INSERT INTO columns (column_name, column_colour, board_id)
-         VALUES ($1, $2, $3)`,
-        [column.column_name, column.column_colour, boardId]
+      // Получаем colour_id по имени цвета колонки
+      const colColourResult = await pool.query(
+        'SELECT colour_id FROM colours WHERE colour_name = $1',
+        [column.column_colour]
       );
-      console.log(`Создана колонка "${column.column_name}" для доски ${boardId}`);
+
+      if (colColourResult.rows.length === 0) {
+        console.warn(`Цвет колонки "${column.column_colour}" не найден, пропускаем эту колонку`);
+        continue; // если цвет не найден, пропускаем вставку этой колонки
+      }
+
+      const colColourId = colColourResult.rows[0].colour_id;
+
+      
+      await pool.query(
+        `INSERT INTO columns (column_name, colour_id, board_id)
+         VALUES ($1, $2, $3)`,
+        [column.column_name, colColourId, boardId]
+      );
+
+      console.log(`Создана колонка "${column.column_name}" с цветом ID ${colColourId} для доски ${boardId}`);
     }
 
     res.status(201).json({ message: 'Доска и колонки успешно созданы', board_id: boardId });
@@ -977,7 +991,6 @@ app.post('/boards', async (req, res) => {
   }
 });
 
-// Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
 
@@ -994,7 +1007,7 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const board = boardResult.rows[0];
 
-    // Получаем colour_name по colour_id
+    // Получаем colour_name доски по colour_id
     const colourResult = await pool.query(
       'SELECT colour_name FROM colours WHERE colour_id = $1',
       [board.colour_id]
@@ -1002,16 +1015,40 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const board_colour = colourResult.rows.length > 0 ? colourResult.rows[0].colour_name : null;
 
-    // Получаем все колонки доски
+    // Получаем колонки доски с colour_id
     const columnsResult = await pool.query(
-      `SELECT column_id, column_name, column_colour
+      `SELECT column_id, column_name, colour_id
        FROM columns
        WHERE board_id = $1
        ORDER BY column_id`,
       [boardId]
     );
 
-    const columns = columnsResult.rows;
+    const columnsRaw = columnsResult.rows;
+
+    // Получаем для всех колонок их цветовые имена из colours
+    // Собираем уникальные colour_id из колонок
+    const uniqueColourIds = [...new Set(columnsRaw.map(col => col.colour_id))];
+    let coloursMap = {};
+
+    if (uniqueColourIds.length > 0) {
+      const coloursResult = await pool.query(
+        `SELECT colour_id, colour_name FROM colours WHERE colour_id = ANY($1)`,
+        [uniqueColourIds]
+      );
+
+      coloursMap = coloursResult.rows.reduce((acc, cur) => {
+        acc[cur.colour_id] = cur.colour_name;
+        return acc;
+      }, {});
+    }
+
+    // Добавляем к колонкам поле colour_name вместо colour_id
+    const columns = columnsRaw.map(col => ({
+      column_id: col.column_id,
+      column_name: col.column_name,
+      column_colour: coloursMap[col.colour_id] || null,
+    }));
 
     // Получаем все записи для колонок этой доски
     const recordsResult = await pool.query(
@@ -1036,7 +1073,7 @@ app.get('/boards/:boardId', async (req, res) => {
     // Добавляем записи к колонкам
     const columnsWithRecords = columns.map(col => ({
       ...col,
-      records: recordsByColumn[col.column_id] || []
+      records: recordsByColumn[col.column_id] || [],
     }));
 
     res.json({
@@ -1049,6 +1086,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 
 // Удаление доски, связанных колонок и записей
