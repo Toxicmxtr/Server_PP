@@ -692,23 +692,23 @@ function isValidTime(time) {
 //получение постов
 app.get('/posts', async (req, res) => {
   try {
+    const userId = req.query.user_id;
+    if (!userId) {
+      return res.status(400).json({ message: 'user_id обязателен' });
+    }
+
     const posts = await pool.query(
       `SELECT 
-         posts.post_id, 
-         posts.post_text, 
-         posts.post_date, 
-         posts.post_time, 
-         posts.post_views, 
-         posts.board_id,
-         boards.board_name,
-         boards.board_colour,
-         users.user_name, 
-         users.user_acctag, 
-         users.avatar_url
+         posts.post_id, posts.post_text, posts.post_date, posts.post_time, posts.post_views, posts.board_id,
+         boards.board_name, boards.board_colour,
+         users.user_name, users.user_acctag, users.avatar_url
        FROM posts
        JOIN users ON posts.post_user_id = users.user_id
        JOIN boards ON posts.board_id = boards.board_id
-       ORDER BY posts.post_date DESC, posts.post_time DESC`
+       JOIN board_members ON posts.board_id = board_members.board_id
+       WHERE board_members.user_id = $1
+       ORDER BY posts.post_date DESC, posts.post_time DESC`,
+      [userId]
     );
 
     if (posts.rows.length > 0) {
@@ -718,7 +718,6 @@ app.get('/posts', async (req, res) => {
         post_date: post.post_date,
         post_time: post.post_time,
         post_views: post.post_views,
-        // Убираем post_picture
         user_name: post.user_name || 'Неизвестный пользователь',
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
@@ -735,6 +734,7 @@ app.get('/posts', async (req, res) => {
     res.status(500).json({ message: 'Ошибка на сервере' });
   }
 });
+
 
 // Маршрут для получения досок пользователя
 app.get('/boards/user/:user_id', async (req, res) => {
