@@ -618,76 +618,7 @@ app.delete('/settings/:id', async (req, res) => {
 });
 
 
-// Роут для загрузки изображения
-app.post('/upload-post-picture', postUpload.single('post_picture'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'Файл не загружен' });
-    }
-    const picturePath = `${req.file.filename}`; // Путь к изображению
-    res.status(200).json({
-      message: 'Фотография поста успешно загружена',
-      picture_url: picturePath, // URL изображения для использования в посте
-    });
-  } catch (err) {
-    console.error('Ошибка при загрузке фотографии поста:', err);
-    res.status(500).json({ message: 'Ошибка при загрузке фотографии' });
-  }
-});
 
-app.post('/add_posts', async (req, res) => {
-  console.log('Полученные данные:', req.body);
-  const { post_text, user_id, post_picture, post_date, post_time } = req.body;
-
-  // Проверяем наличие текста поста и идентификатора пользователя
-  if (!post_text || post_text.trim().length === 0) {
-    return res.status(400).json({ message: 'Текст поста не может быть пустым' });
-  }
-  if (!user_id) {
-    return res.status(400).json({ message: 'Идентификатор пользователя обязателен' });
-  }
-
-  let currentDate = post_date || new Date().toISOString().split('T')[0];
-  let currentTime = post_time || new Date().toISOString().split('T')[1].split('.')[0];
-
-  // Проверка на корректность даты и времени
-  if (!isValidDate(currentDate)) {
-    return res.status(400).json({ message: 'Некорректный формат даты' });
-  }
-  if (!isValidTime(currentTime)) {
-    return res.status(400).json({ message: 'Некорректный формат времени' });
-  }
-
-  // Если изображение было загружено, сохраняем путь к файлу
-  const postPictureUrl = post_picture || null; // Используем URL, полученный от загрузки
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO posts (post_user_id, post_text, post_picture, post_date, post_views, post_time)
-       VALUES ($1, $2, $3, $4, 0, $5)
-       RETURNING post_id, post_user_id, post_text, post_picture, post_date, post_views, post_time`,
-      [user_id, post_text, postPictureUrl, currentDate, currentTime]
-    );
-
-    console.log('Добавлен новый пост:', result.rows[0]);
-    res.status(201).json(result.rows[0]); // Отправляем ответ с добавленным постом
-  } catch (err) {
-    console.error('Ошибка при создании поста:', err);
-    res.status(500).json({ message: 'Ошибка на сервере' });
-  }
-});
-
-// Функция для проверки корректности формата даты (YYYY-MM-DD)
-function isValidDate(date) {
-  const regex = /^\d{4}-\d{2}-\d{2}$/;
-  return regex.test(date);
-}
-
-// Функция для проверки корректности формата времени (HH:mm:ss)
-function isValidTime(time) {
-  const regex = /^([01]?[0-9]|2[0-3]):([0-5][0-9]):([0-5][0-9])$/;
-  return regex.test(time);
-}
 
 //получение постов
 app.get('/posts', async (req, res) => {
