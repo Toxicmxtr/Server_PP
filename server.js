@@ -705,8 +705,8 @@ app.get('/posts', async (req, res) => {
        FROM posts
        JOIN users ON posts.post_user_id = users.user_id
        JOIN boards ON posts.board_id = boards.board_id
-       JOIN board_members ON posts.board_id = board_members.board_id
-       WHERE board_members.user_id = $1
+       JOIN boards_members ON posts.board_id = boards_members.board_id
+       WHERE boards_members.user_id = $1
        ORDER BY posts.post_date DESC, posts.post_time DESC`,
       [userId]
     );
