@@ -11,8 +11,6 @@ const ldap = require('ldapjs');
 const app = express();
 const port = 3000;
 
-// app.use(express.static(path.join(__dirname, 'public')));
-
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
@@ -32,6 +30,23 @@ const pool = new Pool({
   database: '2024_psql_dani',       // Имя базы данных
   password: '4t6FjYUwkQV5eVJB',    // Пароль
   port: 5432,                      // Порт PostgreSQL
+});
+
+// CRON: Удаление старых постов
+cron.schedule('*/1 * * * *', async () => {
+  try {
+    const result = await pool.query(`
+      DELETE FROM posts
+      WHERE post_date < CURRENT_DATE - INTERVAL '30 days'
+    `);
+    console.log(`[CRON] Удалено старых постов: ${result.rowCount}`);
+  } catch (error) {
+    console.error('[CRON] Ошибка при удалении старых постов:', error.message);
+  }
+});
+
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
 });
 
 // Убедитесь, что у вас настроен путь для доступа к загруженным файлам
