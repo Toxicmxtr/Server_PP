@@ -35,15 +35,21 @@ const pool = new Pool({
 // CRON: Удаление старых постов
 cron.schedule('*/1 * * * *', async () => {
   try {
-    const result = await pool.query(`
-      DELETE FROM posts
-      WHERE post_date < CURRENT_DATE - INTERVAL '30 days'
-    `);
-    console.log(`[CRON] Удалено старых постов: ${result.rowCount}`);
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        DELETE FROM posts
+        WHERE post_date < CURRENT_DATE - INTERVAL '30 days'
+      `);
+      console.log(`[CRON] Удалено старых постов: ${result.rowCount}`);
+    } finally {
+      client.release();
+    }
   } catch (error) {
     console.error('[CRON] Ошибка при удалении старых постов:', error.message);
   }
 });
+
 
 // Убедитесь, что у вас настроен путь для доступа к загруженным файлам
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
