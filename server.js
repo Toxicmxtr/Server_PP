@@ -714,11 +714,11 @@ app.get('/boards/user/:user_id', async (req, res) => {
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
-  const { column_name, column_colour, user_id } = req.body; // column_colour = colour_id
+  const { column_name, column_colour, user_id } = req.body; // column_colour = 'yellow' и т.п.
   const { boardId } = req.params;
 
   if (!column_name || !column_colour) {
-    return res.status(400).json({ message: 'Название колонки и column_colour обязательны' });
+    return res.status(400).json({ message: 'Название колонки и цвет обязательны' });
   }
 
   try {
@@ -728,11 +728,23 @@ app.post('/boards/:boardId/columns', async (req, res) => {
       return res.status(404).json({ message: 'Доска не найдена' });
     }
 
-    // Вставляем новую колонку с column_colour (colour_id)
+    // Получаем colour_id по названию цвета
+    const colourRes = await pool.query(
+      'SELECT colour_id FROM colours WHERE colour_name = $1',
+      [column_colour]
+    );
+
+    if (colourRes.rows.length === 0) {
+      return res.status(400).json({ message: 'Указанный цвет не найден в colours' });
+    }
+
+    const colour_id = colourRes.rows[0].colour_id;
+
+    // Вставляем колонку с корректным colour_id
     const columnResult = await pool.query(
       `INSERT INTO columns (column_name, colour_id, board_id) 
        VALUES ($1, $2, $3) RETURNING column_id`,
-      [column_name, column_colour, boardId]
+      [column_name, colour_id, boardId]
     );
 
     const columnId = columnResult.rows[0].column_id;
@@ -755,6 +767,7 @@ app.post('/boards/:boardId/columns', async (req, res) => {
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
+
 
 //удаление колонки из доски
 app.delete('/boards/:boardId/columns/:columnId', async (req, res) => {
