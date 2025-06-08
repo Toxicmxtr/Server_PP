@@ -994,13 +994,13 @@ app.get('/boards/:boardId', async (req, res) => {
 
     const board = boardResult.rows[0];
 
-    // Получаем column_name по colour_id
+    // Получаем colour_name по colour_id
     const colourResult = await pool.query(
       'SELECT colour_name FROM colours WHERE colour_id = $1',
       [board.colour_id]
     );
 
-    const board_colour = colourResult.rows.length > 0 ? colourResult.rows[0].column_name : null;
+    const board_colour = colourResult.rows.length > 0 ? colourResult.rows[0].colour_name : null;
 
     // Получаем все колонки доски
     const columnsResult = await pool.query(
