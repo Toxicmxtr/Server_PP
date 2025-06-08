@@ -634,9 +634,6 @@ app.delete('/settings/:id', async (req, res) => {
   }
 });
 
-
-
-
 //получение постов
 app.get('/posts', async (req, res) => {
   try {
@@ -648,11 +645,12 @@ app.get('/posts', async (req, res) => {
     const posts = await pool.query(
       `SELECT 
          posts.post_id, posts.post_text, posts.post_date, posts.post_time, posts.post_views, posts.board_id,
-         boards.board_name, boards.board_colour,
+         boards.board_name, colours.colour_name,
          users.user_name, users.user_acctag, users.avatar_url
        FROM posts
        JOIN users ON posts.post_user_id = users.user_id
        JOIN boards ON posts.board_id = boards.board_id
+       JOIN colours ON boards.colour_id = colours.colour_id
        JOIN boards_members ON posts.board_id = boards_members.board_id
        WHERE boards_members.user_id = $1
        ORDER BY posts.post_date DESC, posts.post_time DESC`,
@@ -670,7 +668,7 @@ app.get('/posts', async (req, res) => {
         user_acctag: post.user_acctag || '@Неизвестный',
         avatar_url: post.avatar_url || null,
         board_name: post.board_name,
-        board_colour: post.board_colour,
+        board_colour: post.colour_name,
       }));
 
       res.status(200).json(formattedPosts);
@@ -683,16 +681,16 @@ app.get('/posts', async (req, res) => {
   }
 });
 
-
 // Маршрут для получения досок пользователя
 app.get('/boards/user/:user_id', async (req, res) => {
   const userId = parseInt(req.params.user_id);
 
   try {
     const result = await pool.query(
-      `SELECT b.board_id, b.board_name, b.board_colour
+      `SELECT b.board_id, b.board_name, c.colour_name
        FROM boards b
        JOIN boards_members bm ON b.board_id = bm.board_id
+       JOIN colours c ON b.colour_id = c.colour_id
        WHERE bm.user_id = $1`,
       [userId]
     );
@@ -701,7 +699,7 @@ app.get('/boards/user/:user_id', async (req, res) => {
       const formattedBoards = result.rows.map(board => ({
         board_id: board.board_id,
         board_name: board.board_name,
-        board_colour: board.board_colour,
+        board_colour: board.colour_name,
       }));
 
       res.status(200).json(formattedBoards);
@@ -713,7 +711,6 @@ app.get('/boards/user/:user_id', async (req, res) => {
     res.status(500).json({ message: 'Ошибка на сервере' });
   }
 });
-
 
 // Маршрут для добавления новой колонки к существующей доске
 app.post('/boards/:boardId/columns', async (req, res) => {
@@ -926,12 +923,24 @@ app.post('/boards', async (req, res) => {
   try {
     const creatorId = parseInt(board_users[0]);
 
+    // Получаем colour_id из таблицы colours по имени цвета
+    const colourResult = await pool.query(
+      'SELECT colour_id FROM colours WHERE colour_name = $1',
+      [board_colour]
+    );
+
+    if (colourResult.rows.length === 0) {
+      return res.status(400).json({ message: 'Указанный цвет доски не существует' });
+    }
+
+    const colourId = colourResult.rows[0].colour_id;
+
     const insertBoardQuery = `
-      INSERT INTO boards (board_name, board_colour, user_id) 
+      INSERT INTO boards (board_name, colour_id, user_id) 
       VALUES ($1, $2, $3) RETURNING board_id
     `;
 
-    const boardResult = await pool.query(insertBoardQuery, [board_name, board_colour, creatorId]);
+    const boardResult = await pool.query(insertBoardQuery, [board_name, colourId, creatorId]);
     const boardId = boardResult.rows[0].board_id;
     console.log(`Создана доска с ID: ${boardId}, создатель: ${creatorId}`);
 
@@ -968,15 +977,14 @@ app.post('/boards', async (req, res) => {
   }
 });
 
-
 // Серверный код для получения доски и колонок
 app.get('/boards/:boardId', async (req, res) => {
   const { boardId } = req.params;
 
   try {
-    // Получаем данные доски (цвет, ID создателя)
+    // Получаем colour_id и user_id доски
     const boardResult = await pool.query(
-      'SELECT board_colour, user_id FROM boards WHERE board_id = $1',
+      'SELECT colour_id, user_id FROM boards WHERE board_id = $1',
       [boardId]
     );
 
@@ -985,6 +993,14 @@ app.get('/boards/:boardId', async (req, res) => {
     }
 
     const board = boardResult.rows[0];
+
+    // Получаем column_name по colour_id
+    const colourResult = await pool.query(
+      'SELECT column_name FROM colours WHERE colour_id = $1',
+      [board.colour_id]
+    );
+
+    const board_colour = colourResult.rows.length > 0 ? colourResult.rows[0].column_name : null;
 
     // Получаем все колонки доски
     const columnsResult = await pool.query(
@@ -1024,7 +1040,7 @@ app.get('/boards/:boardId', async (req, res) => {
     }));
 
     res.json({
-      board_colour: board.board_colour,
+      board_colour,
       board_creator: board.user_id,
       columns: columnsWithRecords,
     });
@@ -1033,6 +1049,7 @@ app.get('/boards/:boardId', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 // Удаление доски, связанных колонок и записей
 app.delete('/boards/:boardId/delete', async (req, res) => {
