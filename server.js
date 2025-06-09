@@ -1204,15 +1204,16 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
 
   try {
     const token = crypto.randomBytes(16).toString('hex');
-    const status = 'pending';
+    const statusId = 1; // pending
 
     const result = await pool.query(
-      'INSERT INTO invites (board_id, inviter_id, token, status, created_at) VALUES ($1, $2, $3, $4, NOW()) RETURNING token',
-      [boardId, inviterId, token, status]
+      `INSERT INTO invites (board_id, inviter_id, token, status_id, created_at) 
+       VALUES ($1, $2, $3, $4, NOW()) 
+       RETURNING token`,
+      [boardId, inviterId, token, statusId]
     );
 
     const inviteToken = result.rows[0].token;
-
     const inviteLink = `https://retroispk.ru/invite/${inviteToken}`;
 
     res.json({ inviteLink });
@@ -1222,54 +1223,59 @@ app.post('/boards/:boardId/invite-link', async (req, res) => {
   }
 });
 
+
 // Проверка ссылки-приглашения
 app.get('/invite/:token', async (req, res) => {
   const { token } = req.params;
 
   try {
-      const result = await pool.query(
-          'SELECT * FROM invites WHERE token = $1',
-          [token]
-      );
+    const result = await pool.query(
+      `SELECT i.*, s.status_name 
+       FROM invites i
+       LEFT JOIN status_invites s ON i.status_id = s.status_id
+       WHERE i.token = $1`,
+      [token]
+    );
 
-      if (result.rows.length === 0) {
-          console.log(`Invite not found: ${token}`);
-          return res.status(404).send('Invite not found or expired');
-      }
+    if (result.rows.length === 0) {
+      console.log(`Invite not found: ${token}`);
+      return res.status(404).send('Invite not found or expired');
+    }
 
-      const androidIntentLink = `intent://invite/${token}#Intent;scheme=https;package=retroispk.app;end;`;
-      const iosLink = `https://retroispk.ru/invite/${token}`;
+    const androidIntentLink = `intent://invite/${token}#Intent;scheme=https;package=retroispk.app;end;`;
+    const iosLink = `https://retroispk.ru/invite/${token}`;
 
-      const userAgent = req.get('User-Agent');
-      console.log(`Processing invite request for token: ${token} (User-Agent: ${userAgent})`);
+    const userAgent = req.get('User-Agent');
+    console.log(`Processing invite request for token: ${token} (User-Agent: ${userAgent})`);
 
-      res.send(`
-          <!DOCTYPE html>
-          <html lang="ru">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Открытие приложения...</title>
-          </head>
-          <body>
-              <p>Если приложение не открылось автоматически, <a href="${androidIntentLink}">нажмите здесь</a>.</p>
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="ru">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Открытие приложения...</title>
+      </head>
+      <body>
+          <p>Если приложение не открылось автоматически, <a href="${androidIntentLink}">нажмите здесь</a>.</p>
 
-              <script>
-                  setTimeout(function() {
-                      window.location.href = "${androidIntentLink}";
-                  }, 100);
-                  setTimeout(function() {
-                      window.location.href = "https://retroispk.ru";
-                  }, 2000);
-              </script>
-          </body>
-          </html>
-      `);
+          <script>
+              setTimeout(function() {
+                  window.location.href = "${androidIntentLink}";
+              }, 100);
+              setTimeout(function() {
+                  window.location.href = "https://retroispk.ru";
+              }, 2000);
+          </script>
+      </body>
+      </html>
+    `);
   } catch (err) {
-      console.error('Error fetching invite:', err);
-      res.status(500).send('Internal Server Error');
+    console.error('Error fetching invite:', err);
+    res.status(500).send('Internal Server Error');
   }
 });
+
 
 
 // Обработка favicon.ico, чтобы браузер не слетал на корневой маршрут
@@ -1291,7 +1297,13 @@ app.post('/invite/:token/respond', async (req, res) => {
 
     const boardId = inviteResult.rows[0].board_id;
 
-    if (response === 'accepted') {
+    // Определяем числовой status_id
+    let statusId;
+    if (response === 'accepted') statusId = 1;
+    else if (response === 'declined') statusId = 2;
+    else return res.status(400).json({ error: 'Invalid response value' });
+
+    if (statusId === 1) {
       // Проверка: уже добавлен?
       const checkMember = await pool.query(
         'SELECT * FROM boards_members WHERE board_id = $1 AND user_id = $2',
@@ -1326,10 +1338,10 @@ app.post('/invite/:token/respond', async (req, res) => {
       );
     }
 
-    // Обновляем статус приглашения
+    // Обновляем статус приглашения по status_id
     await pool.query(
-      'UPDATE invites SET status = $1 WHERE token = $2',
-      [response, token]
+      'UPDATE invites SET status_id = $1 WHERE token = $2',
+      [statusId, token]
     );
 
     res.json({ message: `Invite ${response}` });
