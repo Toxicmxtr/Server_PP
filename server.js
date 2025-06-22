@@ -226,18 +226,29 @@ app.post("/registerLDAP", async (req, res) => {
         return sendResponse(400, { message: "Такой номер телефона уже зарегистрирован" });
       }
 
+      const acctag = `@${String(user_login)}`;
+
       console.log("[PostgreSQL] Добавление нового пользователя...");
-      const result = await pool.query(
+      const insertResult = await pool.query(
         `INSERT INTO users (user_phone_number, user_password, user_acctag, user_email, "user_LDAP") 
          VALUES ($1, $2, $3, $4, $5) RETURNING user_id`,
-        [String(user_phone_number), user_password, String(user_login), String(user_email), 1]
+        [String(user_phone_number), user_password, acctag, String(user_email), 1]
       );
 
-      console.log("[PostgreSQL] Пользователь успешно добавлен:", result.rows[0]);
+      const userId = insertResult.rows[0].user_id;
+      const userName = `Пользователь ${userId}`;
+
+      console.log("[PostgreSQL] Обновление имени пользователя...");
+      await pool.query(
+        `UPDATE users SET user_name = $1 WHERE user_id = $2`,
+        [userName, userId]
+      );
+
+      console.log("[PostgreSQL] Пользователь успешно добавлен:", userId);
 
       sendResponse(201, {
         message: "Пользователь успешно зарегистрирован",
-        user_id: result.rows[0].user_id,
+        user_id: userId,
       });
     } catch (dbErr) {
       console.error("[PostgreSQL Ошибка] Ошибка при добавлении пользователя:", dbErr);
@@ -253,6 +264,7 @@ app.post("/registerLDAP", async (req, res) => {
     }
   }
 });
+
 
 // Маршрут для входа
 app.post('/login', async (req, res) => {
